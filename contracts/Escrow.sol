@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import './libraries/EscrowLib.sol';
-
 /// @title EscrowContract - Handles the creation, release, and refund of escrow payments
-/// @notice This contract is used for holding funds securely until collection is confirmed
+/// @notice This contract is used for holding funds securely until waste collection is confirmed
 /// @dev Uses libraries for reusable code, custom errors for validation, and NatSpec for documentation
 
-
+import './libraries/EscrowLib.sol';
 
 contract EscrowContract {
     using EscrowLibrary for EscrowLibrary.Escrow;
@@ -20,26 +18,28 @@ contract EscrowContract {
     error AlreadyRefunded();
     error NotFunded();
 
+    // state variables
     mapping(uint256 => EscrowLibrary.Escrow) public escrows;
     uint256 public escrowCounter;
 
+    // events
     event EscrowCreated(uint256 indexed escrowId, address indexed payer, address indexed payee, uint256 amount);
     event EscrowReleased(uint256 indexed escrowId);
     event EscrowRefunded(uint256 indexed escrowId);
 
-    /// @notice Creates a new escrow and holds payment from the recycler upon accepting a user's collection request
+    /// @notice Creates a new escrow and holds payment from the recycler upon accepting a user's waste pickup(collection) request
     /// @param _payee Address of the payee (collector)
     function createEscrow(address _payee) external payable {
         if (msg.value == 0) revert InvalidAmount();
 
-        uint256 escrowId = escrowCounter++;
+        uint256 escrowId = ++escrowCounter;
         EscrowLibrary.Escrow storage newEscrow = escrows[escrowId];
         newEscrow.initialize(msg.sender, _payee, msg.value);
 
         emit EscrowCreated(escrowId, msg.sender, _payee, msg.value);
     }
 
-    /// @notice Releases funds to the user after the collector confirms collection
+    /// @notice Releases funds to the user after the collector(recycler) confirms collection
     /// @param escrowId The ID of the escrow to release
     function releaseEscrow(uint256 escrowId) external {
         EscrowLibrary.Escrow storage escrow = escrows[escrowId];

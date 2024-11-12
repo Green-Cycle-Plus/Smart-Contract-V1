@@ -2,6 +2,8 @@
 pragma solidity 0.8.24;
 
 library EscrowLibrary {
+
+    // escrow struct
     struct Escrow {
         address payer;
         address payee;

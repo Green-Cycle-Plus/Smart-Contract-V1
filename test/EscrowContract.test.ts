@@ -23,7 +23,7 @@ describe("EscrowContract", function () {
     await tx.wait();
 
     // Verify the escrow details
-    const escrowDetails = await escrow.escrows(0);
+    const escrowDetails = await escrow.escrows(1);
     expect(escrowDetails.payer).to.equal(payer.address);
     expect(escrowDetails.payee).to.equal(payee.address);
     expect(escrowDetails.amount).to.equal(amount);
@@ -39,7 +39,7 @@ describe("EscrowContract", function () {
     // Fund the escrow and check for event
     await expect(escrow.connect(payer).createEscrow(payee.address, { value: amount }))
       .to.emit(escrow, "EscrowCreated")
-      .withArgs(0, payer.address, payee.address, amount);
+      .withArgs(1, payer.address, payee.address, amount);
   });
 
   it("should allow payer or payee to release funds to payee", async function () {
@@ -50,9 +50,9 @@ describe("EscrowContract", function () {
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
 
     // Release funds as the payer
-    await expect(escrow.connect(payer).releaseEscrow(0))
+    await expect(escrow.connect(payer).releaseEscrow(1))
       .to.emit(escrow, "EscrowReleased")
-      .withArgs(0);
+      .withArgs(1);
 
     // Verify payee received the funds
     const payeeBalanceAfter = await ethers.provider.getBalance(payee.address);
@@ -67,7 +67,7 @@ describe("EscrowContract", function () {
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
 
     // Attempt to release funds as an unauthorized user
-    await expect(escrow.connect(otherAccount).releaseEscrow(0)).to.be.revertedWithCustomError(
+    await expect(escrow.connect(otherAccount).releaseEscrow(1)).to.be.revertedWithCustomError(
       escrow,
       "Unauthorized"
     );
@@ -81,9 +81,9 @@ describe("EscrowContract", function () {
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
 
     // Refund the escrow as the payer
-    await expect(escrow.connect(payer).refundEscrow(0))
+    await expect(escrow.connect(payer).refundEscrow(1))
       .to.emit(escrow, "EscrowRefunded")
-      .withArgs(0);
+      .withArgs(1);
 
     // Verify payer received the refunded amount
     const payerBalanceAfter = await ethers.provider.getBalance(payer.address);
@@ -98,7 +98,7 @@ describe("EscrowContract", function () {
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
 
     // Attempt to refund as the payee
-    await expect(escrow.connect(payee).refundEscrow(0)).to.be.revertedWithCustomError(
+    await expect(escrow.connect(payee).refundEscrow(1)).to.be.revertedWithCustomError(
       escrow,
       "Unauthorized"
     );
@@ -110,10 +110,10 @@ describe("EscrowContract", function () {
 
     // Fund and release the escrow
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
-    await escrow.connect(payer).releaseEscrow(0);
+    await escrow.connect(payer).releaseEscrow(1);
 
     // Attempt to release again
-    await expect(escrow.connect(payer).releaseEscrow(0)).to.be.revertedWithCustomError(
+    await expect(escrow.connect(payer).releaseEscrow(1)).to.be.revertedWithCustomError(
       escrow,
       "AlreadyReleased"
     );
@@ -125,10 +125,10 @@ describe("EscrowContract", function () {
 
     // Fund and release the escrow
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
-    await escrow.connect(payer).releaseEscrow(0);
+    await escrow.connect(payer).releaseEscrow(1);
 
     // Attempt to refund
-    await expect(escrow.connect(payer).refundEscrow(0)).to.be.revertedWithCustomError(
+    await expect(escrow.connect(payer).refundEscrow(1)).to.be.revertedWithCustomError(
       escrow,
       "AlreadyReleased"
     );
@@ -140,10 +140,10 @@ describe("EscrowContract", function () {
 
     // Fund and refund the escrow
     await escrow.connect(payer).createEscrow(payee.address, { value: amount });
-    await escrow.connect(payer).refundEscrow(0);
+    await escrow.connect(payer).refundEscrow(1);
 
     // Attempt to refund again
-    await expect(escrow.connect(payer).refundEscrow(0)).to.be.revertedWithCustomError(
+    await expect(escrow.connect(payer).refundEscrow(1)).to.be.revertedWithCustomError(
       escrow,
       "AlreadyRefunded"
     );
