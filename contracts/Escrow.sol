@@ -44,7 +44,7 @@ contract EscrowContract {
     function releaseEscrow(uint256 escrowId) external {
         EscrowLibrary.Escrow storage escrow = escrows[escrowId];
 
-        if (msg.sender != escrow.payer && msg.sender != escrow.payee) revert Unauthorized();
+        if (msg.sender != escrow.payer) revert Unauthorized();
         if (!escrow.isFunded) revert NotFunded();
         if (escrow.isReleased) revert AlreadyReleased();
 
