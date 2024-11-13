@@ -2,21 +2,33 @@
 pragma solidity ^0.8.24;
 
 import{waste} from "./libraries/Wastelibrary.sol";
+import{IEscrow} from "./IEscrow.sol";
 
 
 contract WasteManagement{
 
+    IEscrow public escrowContract;  // Address of the Escrow contract
 
+    constructor(address _escrowContract) {
+
+    escrowContract = IEscrow( _escrowContract);
+    
+    }
 
 
     uint256 numberOfUsers;
+
+    struct Coordinates {
+    int32 latitude; 
+    int32 longitude;
+    }
+
 
     struct User { 
               
     uint256 id;
     address userAddress;
-    string location;
-    uint256 rating;
+    Coordinates location;
     bool isRegistered;
 
     }
@@ -24,22 +36,24 @@ contract WasteManagement{
 
     event RequestCreated(uint256 requestID, address userAddress, address recyclerAddress, string wasteType, uint256 weight, uint256 priceAgreed);
     event RequestAccepted(uint256 requestID, address collectorAddress);
+    event RequestConfirmed(uint256 requestID, address collectorAddress);
+    event CollectionRequestCanceled(uint requestID);
+
 
 
     mapping(address => User) public users;
 
 
-    function createUser( address _userAddress, string memory _location, uint256 _ratings ) external {
+    function createUser() external {
 
-        User storage user = users[_userAddress];
+        User storage user = users[msg.sender];
 
-        require( user.isRegistered == false , waste.REGISTERED() );
+        if(user.isRegistered == true) revert waste.REGISTERED();
 
         uint256 _id = numberOfUsers+1;
         user.id = _id;
-        user.userAddress = _userAddress;
-        user.location = _location;
-        user.rating = _ratings;
+        user.userAddress = msg.sender;
+
         user.isRegistered = true;
 
         numberOfUsers++;
@@ -47,16 +61,26 @@ contract WasteManagement{
     }
 
 
-    function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, uint256 rating, bool isRegistered ){
+    function setUserLocation(int32 latitude, int32 longitude) external {
 
-        User storage user = users[_userAddress];
+    if(!users[msg.sender].isRegistered) revert  waste.NOT_REGISTERED();
 
-        return (  user.id , user.userAddress , user.location ,user.rating, user.isRegistered );
+    users[msg.sender].location = Coordinates(latitude, longitude);
+
     }
+
+
+
+    // function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, bool isRegistered ){
+
+    //     User storage user = users[_userAddress];
+
+    //     return (  user.id , user.userAddress , user.location , user.isRegistered );
+    // }
     
 
 
- /************************************************************************************************************************************************************************************/
+    /************************************************************************************************************************************************************************************/
 
 
 
@@ -97,7 +121,6 @@ contract WasteManagement{
         recycler.location = _location;
         recycler.rating = _rating;
         recycler.isRegistered = true;
-        //recycler.isActive = true;                     a function to toggle activeness can be created
         recyclersAddresses.push(_recyclerAddress);
 
         numberOfRecyclers++;
@@ -106,6 +129,7 @@ contract WasteManagement{
 
 
     function seeAllRecyclers()external view returns (address[] memory){
+
         return  recyclersAddresses;
     }
 
@@ -116,9 +140,11 @@ contract WasteManagement{
 
         
         Recycler storage recycler = recyclers[_recyclerAddress];
+
         Offer storage offer = recycler.offers[_wasteType];
 
         offer.pricePerKg = _pricePerKg;
+
         offer.minQuantity = _miniQuantity;
        
         
@@ -128,6 +154,7 @@ contract WasteManagement{
     function viewOffer(address _recyclerAddress,string memory _wasteType) external view returns (uint256 pricePerKg, uint256 minQuantity) {
 
         Recycler storage recycler = recyclers[_recyclerAddress];
+
         Offer memory offer = recycler.offers[_wasteType];
 
         return (offer.pricePerKg, offer.minQuantity);
@@ -141,17 +168,24 @@ contract WasteManagement{
 
     uint256 numOfCollector;
     
-    struct Collector {
+    struct Collector {    
+                                                              
     uint256 id;
     address collectorAddress;
     bool isAvailable;
+
     }
 
     mapping(address => Collector) public collectors;
 
-    function createCollector( address _collectorAddress )external {
+    function createCollector( address _collectorAddress )external {         //should be set by recyclers/
+
+        Recycler storage recycler = recyclers[msg.sender];
+
+        if(recycler.recyclerAddress != msg.sender) revert waste.NOT_AUTHORIZED();
 
         uint256 _id = numOfCollector+1; 
+
         Collector storage collector = collectors[_collectorAddress ];
 
         collector.id = _id;
@@ -165,7 +199,7 @@ contract WasteManagement{
 
     uint256 numOfRequest;
 
-    struct CollectionRequest {
+    struct CollectionRequest {                                      //should be called by users
 
     uint256 id;
     address userAddress;
@@ -173,50 +207,58 @@ contract WasteManagement{
     string wasteType;
     uint256 weight;
     uint256 priceAgreed;
+    uint256 paymentAmount;  // Payment amount in tokens
     bool isCompleted;
     bool isAccepted;  // to track if the request is accepted
     address assignedCollector; // Collector who accepted the request
+    uint256 escrowRequestID;  // Reference to the escrow contract request ID
 
     }
 
     mapping(uint256 => CollectionRequest) public collectionRequests;
 
-    function makekRequest( address _userAddress, address _recyclerAddress, string memory _wasteType, uint256 _weight, uint256 _price)external {
+    function makekRequest(  address _recyclerAddress, string memory _wasteType, uint256 _weight, uint256 _price)external {
 
-        User memory user = users[_userAddress];
+        User memory user = users[msg.sender];
+
         Recycler storage recycler = recyclers[_recyclerAddress];
-        
-          // Ensure user and recycler are registered
-        require( user.isRegistered == true , waste.NOT_REGISTERED());
-        require(recycler.isRegistered == true, waste.NOT_REGISTERED());
 
+        if(user.userAddress != msg.sender) revert waste.NOT_AUTHORIZED();
+        
+        // Ensure user and recycler are registered
+        if( !user.isRegistered) revert waste.NOT_REGISTERED();
+
+        if(!recycler.isRegistered) revert waste.NOT_REGISTERED();
+
+        if(_price < 0) revert waste.PAYMENT_REQUIRED(); // Ensure payment is provided
 
         // Check if the recycler offers the specified waste type
         Offer memory offer = recycler.offers[_wasteType];
-        require(offer.pricePerKg > 0, waste.NOT_AMONG_OFFERS());
 
-        // Optional: Validate minimum weight
-        require(_weight >= offer.minQuantity, waste.LOWER_THAN_MINQUANTITY());
+        if(offer.pricePerKg < 0) revert waste.NOT_AMONG_OFFERS();
+
+        if(_weight < offer.minQuantity) revert waste.LOWER_THAN_MINQUANTITY();
+
         
-        // Generate a new request ID
         uint256 _requestID = numOfRequest+1;
+
+   
 
         CollectionRequest storage collection = collectionRequests[_requestID];
 
         collection.id = _requestID;
-        collection.userAddress = _userAddress;
+        collection.userAddress = msg.sender;
         collection.recyclerAddress = _recyclerAddress;
         collection.wasteType = _wasteType;
         collection.weight = _weight;
         collection.priceAgreed = _price;
-        collection.isCompleted = false;
         collection.isAccepted = false;
+        collection.isCompleted = false;
+        collection.escrowRequestID = 0;
 
+        numOfRequest++;
 
-        numOfRequest++;         // Increment the number of requests
-
-        // Emit event to indicate the creation of a new request
-        emit RequestCreated(_requestID, _userAddress, _recyclerAddress, _wasteType, _weight, _price);
+        emit RequestCreated(_requestID, msg.sender, _recyclerAddress, _wasteType, _weight, _price);
     
     }
 
@@ -229,28 +271,87 @@ contract WasteManagement{
     }
 
 
-    function acceptRequest(uint256 _requestID) external {
+    function acceptRequest(uint256 _requestID, address _collectorAddress ) external {                           //should be called by the recycler
 
     CollectionRequest storage collection = collectionRequests[_requestID];
-    Collector storage collector = collectors[msg.sender];
 
-    // Ensure collector is registered and available
-    require(collector.collectorAddress == msg.sender, waste.NOT_REGISTERED());
-    require(collector.isAvailable, waste.NOT_AVAILABLE());
-    require(!collection.isAccepted, waste.ALLREADY_ACCEPTED());
+    Collector storage collector = collectors[_collectorAddress];
+
+    if(collection.recyclerAddress != msg.sender) revert waste. ONLY_A_RECYCLER();
+
+    if(collection.isAccepted) revert waste.ALLREADY_ACCEPTED();
+
+    if(collection.isCompleted) revert waste.ALREADY_COMPLETED();
 
     // Mark request as accepted
     collection.isAccepted = true;
-    collection.isCompleted = false;  // Mark as in progress
-    collection.assignedCollector = msg.sender;
+    //collection.isCompleted = false;  // Mark as in progress
+    collection.assignedCollector = _collectorAddress;
 
     // Update collector availability
     collector.isAvailable = false;
 
-    // Emit an event to indicate request acceptance
-    emit RequestAccepted(_requestID, msg.sender);
+        // Create the escrow and then retrieve the current escrow ID from EscrowContract
+    uint256 escrowId = escrowContract.createEscrow{value: collection.priceAgreed}(collection.userAddress);
 
-}
+    collection.escrowRequestID  = escrowId;
+
+    // Emit an event to indicate request acceptance
+    emit RequestAccepted(_requestID, _collectorAddress );
+
+    }
+
+
+    function confirmRequest(uint256 _requestID) external {             // should be called by the collector
+
+    CollectionRequest storage collection = collectionRequests[_requestID];
+
+    // Ensure the request is accepted and not already completed
+
+    if(collection.assignedCollector != msg.sender) revert waste.NOT_ASSIGNED();
+
+    if(!collection.isAccepted) revert waste.NOT_ACCEPTED_YET();
+
+    if(collection.isCompleted) revert waste.ALREADY_COMPLETED();
+    
+
+    // Mark the request as completed
+    collection.isCompleted = true;  
+
+    escrowContract.releaseEscrow(collection.escrowRequestID);
+
+    // Set the collector's availability back to true
+    Collector storage collector = collectors[msg.sender];
+
+    collector.isAvailable = true;
+
+    // Emit an event indicating the completion of the request
+    emit RequestConfirmed(_requestID, msg.sender);
+
+    }
+
+
+    function cancelRequestAndRefund(uint256 _requestID) external {
+
+    CollectionRequest storage collection = collectionRequests[_requestID];
+    Collector storage collector = collectors[msg.sender];
+
+    // Ensure only the recycler or the collector can cancel the request
+    if(
+        msg.sender != collection.recyclerAddress || msg.sender != collector.collectorAddress
+      
+    ) revert  waste.NOT_AUTHORIZED();
+
+    if(collection.isCompleted) revert waste.ALREADY_COMPLETED(); // Ensure the request isn't completed
+
+    // Trigger the refundEscrow function in the Escrow contract
+    escrowContract.refundEscrow(collection.escrowRequestID);
+
+    // Mark the request as canceled to prevent future actions on it
+    collection.isCompleted = true;
+
+    emit CollectionRequestCanceled(_requestID);
+    }
 
 
 

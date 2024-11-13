@@ -12,6 +12,14 @@ library waste {
     error LOWER_THAN_MINQUANTITY();
     error NOT_AMONG_OFFERS();
     error ALLREADY_ACCEPTED();
+    error NOT_ACCEPTED_YET();
+    error ALREADY_COMPLETED();
+    error NOT_ASSIGNED();
+    error PAYMENT_REQUIRED();
+    error TRANSFER_FAILED();
+    error ONLY_A_RECYCLER();
+    error NOT_AUTHORIZED();
+
 
 
 
