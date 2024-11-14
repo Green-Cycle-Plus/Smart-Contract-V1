@@ -4,243 +4,273 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "./interfaces/IEscrow.sol";
+import "./libraries/ErrorLib.sol";
+import "./libraries/CategoryLib.sol";
+import "./libraries/ProductLib.sol";
+import "./libraries/OrderLib.sol";
 
+/**
+ * @title MarketPlaceContract
+ * @dev Marketplace contract for managing categories, products, and orders, including escrow management for the recyclers to upload their products.
+ */
 contract MarketPlaceContract {
     using ECDSA for bytes32;
 
-    enum OrderStatus {
-        PROCESSING,
-        IN_TRANSIT,
-        DELIVERED,
-        CANCELLED
-    }
+    using CategoryLib for CategoryLib.CategoryStorage;
+    using ProductLib for ProductLib.ProductStorage;
+    using OrderLib for OrderLib.OrderStorage;
 
-    struct Category {
-        uint id;
-        string name;
-    }
+    CategoryLib.CategoryStorage categoryAction;
+    ProductLib.ProductStorage productAction;
+    OrderLib.OrderStorage orderAction;
 
-    struct Product {
-        uint id;
-        uint categoryId; // Link to dynamic category
-        uint price;
-        uint quantity;
-        address recycler;
-        bool isActive;
-        string ipfsHash; // Off-chain storage for Name/descriptions/images
-    }
-
-    struct Order {
-        uint orderId;
-        uint[] productIds;
-        address buyer;
-        uint[] quantities;
-        uint totalAmount;
-        OrderStatus status;
-        bytes32 orderHash;
-    }
+    mapping(address => bool) public authorizedRecyclers;
 
     IEscrow public escrowContract;
-
-    mapping(uint => Category) public categories;
-    uint[] public categoryIds;
-    uint public totalCategory;
-
-    uint public productCount;
-    mapping(uint => Product) public products;
-    mapping(address => uint[]) public recyclerProducts;
-    mapping(address => uint256) public recyclerBalances;
-
-    mapping(uint => Order) public orders;
-    uint public orderCount;
 
     address public owner;
 
     // Events
-    event CategoryAdded(uint indexed categoryId, string name);
-    event CategoryUpdated(uint indexed categoryId, string name);
-    event ProductListed(
-        uint indexed productId,
-        address indexed recycler,
-        uint _categoryId,
-        uint _price,
-        uint _quantity,
-        string _ipfsHash
-    );
-    event ProductPurchased(
-        uint indexed productId,
-        address indexed buyer,
-        uint orderId
-    );
-
-    event OrderCreated(uint orderid, address buyer, uint totalAmount);
-    event OrderDelivered(uint indexed orderId);
+    event LogFallback(address sender, uint value, bytes data);
+    event LogReceive(address sender, uint value);
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only the owner can perform this action");
+        require(msg.sender == owner, "Unathourized");
         _;
     }
 
+    modifier onlyRecycler(uint _productId) {
+        ProductLib.Product storage product = productAction.products[_productId];
+        require(
+            msg.sender == product.recycler,
+            "Only the product owner (recycler) can perform this action"
+        );
+        _;
+    }
+
+    modifier onlyAuthorizedRecycler(address _recycler) {
+        require(authorizedRecyclers[_recycler], "UnauthorizedRecycler");
+        _;
+    }
+
+    /**
+     * @dev Constructor to initialize the contract with an escrow contract address.
+     * @param _escrowContract Address of the escrow contract.
+     */
     constructor(address _escrowContract) {
-        require(_escrowContract != address(0), "Invalid Address.");
+        if (_escrowContract == address(0)) revert ErrorLib.ZeroAddress();
         owner = msg.sender;
         escrowContract = IEscrow(_escrowContract);
     }
 
-    // Category management functions
-
-    function addCategory(string memory _name) public onlyOwner {
-        uint categoryId = totalCategory++;
-        categories[categoryId] = Category(categoryId, _name);
-        categoryIds.push(categoryId);
-        emit CategoryAdded(categoryId, _name);
+    /**
+     * @notice Onboards a recycler to the marketplace.
+     * @dev Only callable by the owner.
+     * @param _recycler Address of the recycler to onboard.
+     */
+    function onboardRecycler(address _recycler) external onlyOwner {
+        if (_recycler == address(0)) revert ErrorLib.ZeroAddress();
+        authorizedRecyclers[_recycler] = true;
     }
 
+    /**
+     * @notice Adds a new category to the marketplace.
+     * @dev Only callable by the owner.
+     * @param _name Name of the category to add.
+     */
+    function addCategory(string memory _name) external onlyOwner {
+        categoryAction.createCategory(_name);
+    }
+
+    /**
+     * @notice Retrieves all categories in the marketplace.
+     * @return An array of all categories.
+     */
+    function getCategories()
+        external
+        view
+        returns (CategoryLib.Category[] memory)
+    {
+        return categoryAction.getCategories();
+    }
+
+    /**
+     * @notice Retrieves a single category by its ID.
+     * @param _id ID of the category to retrieve.
+     * @return Tuple containing the ID and name of the category.
+     */
+    function getCategory(
+        uint256 _id
+    ) external view returns (uint256, string memory) {
+        return categoryAction.getCategory(_id);
+    }
+
+    /**
+     * @notice Updates an existing category.
+     * @dev Only callable by the owner.
+     * @param _categoryId ID of the category to update.
+     * @param _name New name of the category.
+     */
     function updateCategory(
         uint _categoryId,
         string memory _name
-    ) public onlyOwner {
-        Category storage category = categories[_categoryId];
-        require(category.id == _categoryId, "Category does not exist");
-        category.name = _name;
-        emit CategoryUpdated(_categoryId, _name);
+    ) external onlyOwner {
+        categoryAction.updateCategory(_categoryId, _name);
     }
 
-    function getCategories() public view returns (Category[] memory) {
-        Category[] memory activeCategories = new Category[](categoryIds.length);
-        return activeCategories;
-    }
-
-    // Function for recyclers to list a new product.
+    /**
+     * @notice Lists a new product under a specified category.
+     * @dev Only callable by an authorized recycler.
+     * @param _categoryId ID of the category the product belongs to.
+     * @param _price Price of the product in wei.
+     * @param _quantity Quantity of the product available for sale.
+     * @param _ipfsHash IPFS hash containing product metadata (name, description, image, etc.).
+     */
     function listProduct(
         uint _categoryId,
         uint _price,
         uint _quantity,
         string memory _ipfsHash //Contains IPFS Hash of Name/description/image etc
-    ) public {
-        require(_quantity > 0, "Quantity must be greater than zero");
-        require(_price > 0, "Invalid Price");
+    ) public onlyAuthorizedRecycler(msg.sender) {
+        CategoryLib.Category storage category = categoryAction.categories[
+            _categoryId
+        ];
+        if (category.id != _categoryId) revert ErrorLib.CategoryNotFound();
 
-        productCount++;
-        products[productCount] = Product({
-            id: productCount,
-            categoryId: _categoryId,
-            price: _price,
-            quantity: _quantity,
-            recycler: msg.sender,
-            isActive: true,
-            ipfsHash: _ipfsHash
-        });
+        productAction.addProduct(_categoryId, _price, _quantity, _ipfsHash);
+    }
 
-        recyclerProducts[msg.sender].push(productCount);
-        emit ProductListed(
-            productCount,
-            msg.sender,
-            _categoryId,
-            _price,
+    /**
+     * @notice Updates an existing product's details.
+     * @dev Only callable by the product's designated recycler.
+     * @param _productId ID of the product to update.
+     * @param _price New price of the product in wei.
+     * @param _quantity New quantity of the product.
+     * @param _ipfsHash Updated IPFS hash containing product metadata.
+     */
+    function updateProduct(
+        uint _productId,
+        uint _price,
+        uint _quantity,
+        string memory _ipfsHash
+    ) public onlyRecycler(_productId) {
+        productAction.updateProduct(_productId, _price, _quantity, _ipfsHash);
+    }
+
+    /**
+     * @notice Retrieves details of a single product.
+     * @param _productId ID of the product to retrieve.
+     * @return Product details as a Product struct.
+     */
+    function getProduct(
+        uint _productId
+    ) external view returns (ProductLib.Product memory) {
+        return productAction.getProduct(_productId);
+    }
+
+    /**
+     * @notice Retrieves the total count of products in the marketplace.
+     * @return Total number of products.
+     */
+    function getProductCount() external view returns (uint) {
+        return productAction.getProductCount();
+    }
+
+    /**
+     * @notice Retrieves all products listed by a specific recycler.
+     * @param _recycler Address of the recycler.
+     * @return Array of product IDs listed by the recycler.
+     */
+    function getAllrecyclerProducts(
+        address _recycler
+    ) external view returns (uint[] memory) {
+        return productAction.getAllrecyclerProducts(_recycler);
+    }
+
+    /**
+     * @notice Allows a user to purchase a specified quantity of a product.
+     * @param _productId ID of the product to purchase.
+     * @param _quantity Quantity of the product to purchase.
+     * @dev Requires the user to send an exact payment amount in ether.
+     */
+    function purchaseProduct(uint _productId, uint _quantity) external payable {
+        ProductLib.Product storage product = productAction.products[_productId];
+        if (!product.isActive) revert ErrorLib.ProductNotAvailable();
+        if (product.quantity == 0) revert ErrorLib.ProductOutOfStock();
+
+        uint totalAmount = product.price * _quantity;
+
+        if (msg.value < totalAmount) revert ErrorLib.InsufficientEther();
+        if (msg.value > totalAmount) revert ErrorLib.PayingExcess();
+
+        product.quantity -= _quantity;
+
+        orderAction.placeOrder(
+            _productId,
             _quantity,
-            _ipfsHash
+            totalAmount,
+            escrowContract,
+            product.recycler,
+            msg.sender
         );
     }
 
-    // function purchaseProduct(uint _productId, uint _quantity) public payable {
-    //     Product storage product = products[_productId];
-    //     require(product.isActive, "Product is not available");
-    //     require(product.quantity >= _quantity, "Not enough product quantity");
+    /**
+     * @notice Cancels an order if it is in the processing state.
+     * @param _orderId ID of the order to cancel.
+     */
+    function cancelOrder(uint _orderId) external {
+        OrderLib.Order storage order = orderAction.orders[_orderId];
+        if (order.orderId == 0) revert ErrorLib.OrderDoesNotExist();
 
-    //     uint totalprice = product.price * _quantity;
-    //     uint256 userBal = msg.sender.balance;
+        if (order.status != OrderLib.OrderStatus.PROCESSING)
+            revert ErrorLib.CannotCancelOrder();
+        ProductLib.Product storage product = productAction.products[
+            order.productId
+        ];
+        product.quantity += order.quantity;
 
-    //     require(userBal >= totalprice, "Insufficient Funds");
-    //     require(msg.value >= totalprice, "Insufficient Ether sent");
-
-    //     //Increase recycle Balance
-    //     recyclerBalances[product.recycler] += totalprice;
-
-    //     if (msg.value > totalprice) {
-    //         payable(msg.sender).transfer(msg.value - totalprice);
-    //     }
-
-    //     product.quantity -= _quantity;
-
-    //     orderCount++;
-    //     orders[orderCount] = Order({
-    //         orderId: orderCount,
-    //         productId: _productId,
-    //         buyer: msg.sender,
-    //         quantity: _quantity,
-    //         totalprice: totalprice,
-    //         status: OrderStatus.PROCESSING
-    //     });
-    //     emit ProductPurchased(_productId, msg.sender, orderCount);
-    // }
-
-    // Place order without loops, using signature verification
-    function placeOrder(
-        uint[] calldata _productIds,
-        uint[] calldata _quantities,
-        uint _totalAmount,
-        bytes32 _orderHash, //Hash of the ProductIds, Quatities, Total Amount and Buyer Address.
-        bytes calldata _signature //A signed message by the buy that authorizes this purchase. Like an agreement buyer agrees.
-    ) external payable {
-        require(
-            _productIds.length == _quantities.length,
-            "Product and quantity mismatch"
-        );
-        require(msg.value >= _totalAmount, "Insufficient payment for order");
-
-        // Verify the order hash and signature
-        bytes32 computedHash = keccak256(
-            abi.encodePacked(_productIds, _quantities, _totalAmount, msg.sender)
-        );
-        require(computedHash == _orderHash, "Invalid order hash");
-
-        // Manually create the Ethereum Signed Message hash
-        bytes32 ethSignedHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", computedHash)
-        );
-
-        // Recover the signer using the signed hash and signature
-        address signer = ECDSA.recover(ethSignedHash, _signature);
-        require(signer == msg.sender, "Signature verification failed");
-
-        // Proceed with order storage and escrow creation
-        orderCount++;
-        orders[orderCount] = Order({
-            orderId: orderCount,
-            productIds: _productIds,
-            buyer: msg.sender,
-            quantities: _quantities,
-            totalAmount: _totalAmount,
-            status: OrderStatus.PROCESSING,
-            orderHash: _orderHash
-        });
-
-        // Create a single escrow for this order
-        escrowContract.createEscrow{value: _totalAmount}(msg.sender);
-
-        emit OrderCreated(orderCount, msg.sender, _totalAmount);
+        orderAction.cancelOrder(_orderId, escrowContract, msg.sender);
     }
 
-    // Buyer confirms delivery to release funds
+    /**
+     * @notice Confirms the delivery of an order by the buyer.
+     * @param _orderId ID of the order to confirm.
+     */
     function confirmDelivery(uint _orderId) external {
-        Order storage order = orders[_orderId];
-        require(order.buyer != address(0), "Order does not exist");
-        require(order.buyer == msg.sender, "Only buyer can confirm delivery");
-        require(order.status != OrderStatus.DELIVERED, "Order already confirmed as delivered");
-
-        order.status = OrderStatus.DELIVERED;
-
-        // Release funds from escrow
-        escrowContract.releaseEscrow(_orderId);
-
-        emit DeliveryConfirmed(_orderId);
+        orderAction.confirm(_orderId, escrowContract, msg.sender);
     }
 
-    function confirmOrderDelivery(uint _orderId) public {
-        Order storage order = orders[_orderId];
-        require(order.buyer != address(0), "Order does not exist");
-        order.status = OrderStatus.DELIVERED;
-        emit OrderDelivered(_orderId);
+    /**
+     * @notice Retrieves details of a specific order.
+     * @param _orderId ID of the order to retrieve.
+     * @return Order details as an Order struct.
+     */
+    function getOrder(
+        uint _orderId
+    ) external view returns (OrderLib.Order memory) {
+        return orderAction.getOrder(_orderId);
+    }
+
+    /**
+     * @notice Returns the total number of orders in the marketplace.
+     * @return Total number of orders.
+     */
+    function totalOrder() external view returns (uint) {
+        return orderAction.orderCount;
+    }
+
+    /**
+     * @notice Fallback function to log unexpected calls.
+     */
+    fallback() external payable {
+        emit LogFallback(msg.sender, msg.value, msg.data);
+    }
+
+    /**
+     * @notice Receive function to log ether sent directly to the contract.
+     */
+    receive() external payable {
+        emit LogReceive(msg.sender, msg.value);
     }
 }

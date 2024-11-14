@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity ^0.8.24;
 
 /// @title EscrowContract - Handles the creation, release, and refund of escrow payments
 /// @notice This contract is used for holding funds securely until waste collection is confirmed
