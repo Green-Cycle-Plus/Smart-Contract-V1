@@ -35,7 +35,7 @@ library OrderLib {
         uint orderCount;
     }
 
-    event OrderCreated(uint orderid, address buyer, uint totalAmount);
+    event OrderCreated(uint orderId, address buyer, uint totalAmount);
     event OrderDelivered(uint indexed orderId);
     event OrderCancelled(
         uint indexed orderId,
@@ -109,6 +109,8 @@ library OrderLib {
         Order storage order = self.orders[_orderId];
         if (order.buyer == address(0)) revert ErrorLib.OrderDoesNotExist();
         if (order.buyer != sender) revert ErrorLib.OnlyBuyer();
+        if (order.status != OrderStatus.PROCESSING)
+            revert ErrorLib.CannotCancelOrder();
         if (order.status == OrderStatus.DELIVERED)
             revert ErrorLib.AlreadyDelivered();
 
@@ -155,7 +157,7 @@ library OrderLib {
                 "Recycler cancelled the order"
             );
         } else {
-            revert("Only the buyer or recycler can cancel the order");
+            revert ErrorLib.UnauthorizedToCancel();
         }
     }
 

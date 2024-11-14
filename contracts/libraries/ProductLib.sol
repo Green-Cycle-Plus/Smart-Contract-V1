@@ -66,9 +66,10 @@ library ProductLib {
         if (_price == 0) revert ErrorLib.InvalidPrice();
         if (bytes(_ipfsHash).length == 0) revert ErrorLib.InvalidIpfsHash();
 
-        self.productCount++;
+        uint productId = ++self.productCount;
+
         self.products[self.productCount] = Product({
-            id: self.productCount,
+            id: productId,
             categoryId: _categoryId,
             price: _price,
             quantity: _quantity,
@@ -77,9 +78,9 @@ library ProductLib {
             ipfsHash: _ipfsHash
         });
 
-        self.recyclerProducts[msg.sender].push(self.productCount);
+        self.recyclerProducts[msg.sender].push(productId);
         emit ProductListed(
-            self.productCount,
+            productId,
             msg.sender,
             _categoryId,
             _price,

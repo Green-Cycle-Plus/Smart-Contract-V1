@@ -19,4 +19,9 @@ library ErrorLib {
     error OnlyBuyer();
     error AlreadyDelivered();
     error PayingExcess();
+    error RecyclerAlreadyExist();
+    error CategoryAlreadyExist();
+    error ProductQuantityExceeded();
+    error UnauthorizedToCancel();
+    error CannotConfirmOrder();
 }

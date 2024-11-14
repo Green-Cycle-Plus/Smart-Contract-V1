@@ -29,10 +29,10 @@ contract EscrowContract {
 
     /// @notice Creates a new escrow and holds payment from the recycler upon accepting a user's waste pickup(collection) request
     /// @param _payee Address of the payee (collector)
-    function createEscrow(address _payee) external payable {
+    function createEscrow(address _payee) external payable returns(uint256 escrowId) {
         if (msg.value == 0) revert InvalidAmount();
 
-        uint256 escrowId = ++escrowCounter;
+        escrowId = ++escrowCounter;
         EscrowLibrary.Escrow storage newEscrow = escrows[escrowId];
         newEscrow.initialize(msg.sender, _payee, msg.value);
 

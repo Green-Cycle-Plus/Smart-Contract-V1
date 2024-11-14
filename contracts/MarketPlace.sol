@@ -35,7 +35,7 @@ contract MarketPlaceContract {
     event LogReceive(address sender, uint value);
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Unathourized");
+        require(msg.sender == owner, "Unauthorized");
         _;
     }
 
@@ -69,6 +69,8 @@ contract MarketPlaceContract {
      * @param _recycler Address of the recycler to onboard.
      */
     function onboardRecycler(address _recycler) external onlyOwner {
+        if (authorizedRecyclers[_recycler])
+            revert ErrorLib.RecyclerAlreadyExist();
         if (_recycler == address(0)) revert ErrorLib.ZeroAddress();
         authorizedRecyclers[_recycler] = true;
     }
@@ -197,6 +199,8 @@ contract MarketPlaceContract {
         ProductLib.Product storage product = productAction.products[_productId];
         if (!product.isActive) revert ErrorLib.ProductNotAvailable();
         if (product.quantity == 0) revert ErrorLib.ProductOutOfStock();
+        if (_quantity > product.quantity)
+            revert ErrorLib.ProductQuantityExceeded();
 
         uint totalAmount = product.price * _quantity;
 

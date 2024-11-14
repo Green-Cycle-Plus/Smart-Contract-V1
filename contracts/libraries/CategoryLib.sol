@@ -16,6 +16,7 @@ library CategoryLib {
 
     struct CategoryStorage {
         mapping(uint => Category) categories;
+        mapping(string => uint) nameToId;
         uint[] categoryIds;
         uint totalCategory;
     }
@@ -33,10 +34,12 @@ library CategoryLib {
         CategoryStorage storage self,
         string memory _name
     ) internal {
-        if (bytes(_name).length == 0) {
+        if (bytes(_name).length < 4) {
             revert ErrorLib.InvalidCategoryName();
         }
-        uint categoryId = self.totalCategory++;
+        if (self.nameToId[_name] != 0) revert ErrorLib.CategoryAlreadyExist();
+
+        uint categoryId = ++self.totalCategory;
         self.categories[categoryId] = Category(categoryId, _name);
         self.categoryIds.push(categoryId);
         emit CategoryAdded(categoryId, _name);
@@ -71,6 +74,7 @@ library CategoryLib {
     ) internal {
         Category storage category = self.categories[_categoryId];
         if (category.id != _categoryId) revert ErrorLib.CategoryNotFound();
+        if (self.nameToId[_name] != 0) revert ErrorLib.CategoryAlreadyExist();
         category.name = _name;
         emit CategoryUpdated(_categoryId, _name);
     }
