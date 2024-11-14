@@ -70,8 +70,10 @@ library OrderLib {
         address buyer
     ) internal {
         // Create a single escrow for this order
-        escrowContract.createEscrow{value: totalAmount}(recycler);
-        uint256 escrowId = escrowContract.escrowCounter();
+        uint256 escrowId = escrowContract.createEscrow{value: totalAmount}(
+            recycler
+        );
+        // uint256 escrowId = escrowContract.escrowCounter();
 
         self.orderCount++;
         self.orders[self.orderCount] = Order({
