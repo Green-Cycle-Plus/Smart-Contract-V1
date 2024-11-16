@@ -2,8 +2,6 @@
 pragma solidity ^0.8.24;
 
 library waste {
-
-
     error REGISTERED();
     error NOT_REGISTERED();
     error NOT_AVAILABLE();
@@ -19,9 +17,6 @@ library waste {
     error TRANSFER_FAILED();
     error ONLY_A_RECYCLER();
     error NOT_AUTHORIZED();
-
-
-
-
-    
+    error ALREADY_ACCEPTED();
+    error COLLECTOR_NOT_AVAILABLE();
 }

@@ -1,7 +1,6 @@
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import { EscrowContract, EscrowContract__factory } from "../typechain-types";
 
 describe("EscrowContract", function () {
   async function deployEscrowFixture() {
