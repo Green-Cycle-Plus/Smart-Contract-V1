@@ -71,6 +71,7 @@ contract WasteManagement {
     event RequestAccepted(uint256 requestID, address collectorAddress);
     event RequestConfirmed(uint256 requestID, address collectorAddress);
     event CollectionRequestCanceled(uint requestID);
+    event CollectorCreated(address _collectorAddress);
 
     constructor(address _escrowContract) {
         escrowContract = IEscrow(_escrowContract);
@@ -135,6 +136,16 @@ contract WasteManagement {
         
         offer.pricePerKg = _pricePerKg; 
         offer.minQuantity = _minQuantity; 
+    }
+
+    function createCollector(address _collectorAddress) external {
+        Collector storage collector = collectors[_collectorAddress];
+        if (collector.isAvailable) revert waste.COLLECTOR_ALREADY_REGISTERED();
+        collector.id = ++numOfCollector;
+        collector.collectorAddress = _collectorAddress;
+        collector.isAvailable = true; // Set to available upon creation
+
+        emit CollectorCreated(_collectorAddress);
     }
 
     /** 
@@ -231,17 +242,16 @@ contract WasteManagement {
    * @param _requestID The ID of the request to be canceled.
    */
    function cancelRequestAndRefund(uint256 _requestID) external {
-       CollectionRequest storage collection = collectionRequests[_requestID];
+    CollectionRequest storage collection = collectionRequests[_requestID];
+    if (msg.sender != collection.recyclerAddress && msg.sender != collection.assignedCollector) 
+        revert waste.NOT_AUTHORIZED();
+    
+    if (collection.isCompleted) revert waste.ALREADY_COMPLETED();
+    
+    collection.isCompleted = true;
 
-       if (msg.sender != collection.recyclerAddress && msg.sender != collection.assignedCollector)
-           revert waste.NOT_AUTHORIZED();
+    escrowContract.refundEscrow(collection.escrowRequestID);
 
-       if (collection.isCompleted) revert waste.ALREADY_COMPLETED();
-
-       escrowContract.refundEscrow(collection.escrowRequestID);
-
-       collection.isCompleted = true;
-
-       emit CollectionRequestCanceled(_requestID);
-   }
+    emit CollectionRequestCanceled(_requestID);
+}
 }

@@ -19,4 +19,5 @@ library waste {
     error NOT_AUTHORIZED();
     error ALREADY_ACCEPTED();
     error COLLECTOR_NOT_AVAILABLE();
+    error COLLECTOR_ALREADY_REGISTERED();
 }
