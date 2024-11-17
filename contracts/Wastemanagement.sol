@@ -5,7 +5,8 @@ import{waste} from "./libraries/Wastelibrary.sol";
 import{IEscrow} from "./IEscrow.sol";
 
 
-contract WasteManagement{
+
+    contract WasteManagement{
 
     IEscrow public escrowContract;  // Address of the Escrow contract
 
@@ -50,7 +51,7 @@ contract WasteManagement{
 
         if(user.isRegistered == true) revert waste.REGISTERED();
 
-        uint256 _id = numberOfUsers+1;
+        uint256 _id = ++numberOfUsers;
         user.id = _id;
         user.userAddress = msg.sender;
 
@@ -71,15 +72,6 @@ contract WasteManagement{
 
 
 
-    // function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, bool isRegistered ){
-
-    //     User storage user = users[_userAddress];
-
-    //     return (  user.id , user.userAddress , user.location , user.isRegistered );
-    // }
-    
-
-
     /************************************************************************************************************************************************************************************/
 
 
@@ -94,7 +86,6 @@ contract WasteManagement{
     mapping(string => Offer) offers; // Offers by waste type
     uint256 rating;
     bool isRegistered;
-    //bool isActive;
 
     }
 
@@ -112,7 +103,7 @@ contract WasteManagement{
 
     function createRecycler(address _recyclerAddress, string memory _location, uint256 _rating) external {
 
-        uint256 _id =  numberOfRecyclers+1;
+        uint256 _id =  ++numberOfRecyclers;
 
         Recycler storage recycler = recyclers[_recyclerAddress];
 
@@ -166,37 +157,6 @@ contract WasteManagement{
 
  /************************************************************************************************************************************************************************************/
 
-    uint256 numOfCollector;
-    
-    struct Collector {    
-                                                              
-    uint256 id;
-    address collectorAddress;
-    bool isAvailable;
-
-    }
-
-    mapping(address => Collector) public collectors;
-
-    function createCollector( address _collectorAddress )external {         //should be set by recyclers/
-
-        Recycler storage recycler = recyclers[msg.sender];
-
-        if(recycler.recyclerAddress != msg.sender) revert waste.NOT_AUTHORIZED();
-
-        uint256 _id = numOfCollector+1; 
-
-        Collector storage collector = collectors[_collectorAddress ];
-
-        collector.id = _id;
-        collector.collectorAddress = _collectorAddress;
-        collector.isAvailable = true;
-
-        numOfCollector++;
-
-    }
-
-
     uint256 numOfRequest;
 
     struct CollectionRequest {                                      //should be called by users
@@ -210,7 +170,6 @@ contract WasteManagement{
     uint256 paymentAmount;  // Payment amount in tokens
     bool isCompleted;
     bool isAccepted;  // to track if the request is accepted
-    address assignedCollector; // Collector who accepted the request
     uint256 escrowRequestID;  // Reference to the escrow contract request ID
 
     }
@@ -240,7 +199,7 @@ contract WasteManagement{
         if(_weight < offer.minQuantity) revert waste.LOWER_THAN_MINQUANTITY();
 
         
-        uint256 _requestID = numOfRequest+1;
+        uint256 _requestID = ++numOfRequest;
 
    
 
@@ -271,11 +230,9 @@ contract WasteManagement{
     }
 
 
-    function acceptRequest(uint256 _requestID, address _collectorAddress ) external {                           //should be called by the recycler
+    function acceptRequest(uint256 _requestID ) external {                           //should be called by the recycler
 
     CollectionRequest storage collection = collectionRequests[_requestID];
-
-    Collector storage collector = collectors[_collectorAddress];
 
     if(collection.recyclerAddress != msg.sender) revert waste. ONLY_A_RECYCLER();
 
@@ -285,30 +242,25 @@ contract WasteManagement{
 
     // Mark request as accepted
     collection.isAccepted = true;
-    //collection.isCompleted = false;  // Mark as in progress
-    collection.assignedCollector = _collectorAddress;
 
-    // Update collector availability
-    collector.isAvailable = false;
-
-        // Create the escrow and then retrieve the current escrow ID from EscrowContract
+    // Create the escrow and then retrieve the current escrow ID from EscrowContract
     uint256 escrowId = escrowContract.createEscrow{value: collection.priceAgreed}(collection.userAddress);
 
     collection.escrowRequestID  = escrowId;
 
     // Emit an event to indicate request acceptance
-    emit RequestAccepted(_requestID, _collectorAddress );
+    emit RequestAccepted(_requestID, msg.sender );
 
     }
 
 
-    function confirmRequest(uint256 _requestID) external {             // should be called by the collector
+    function confirmRequest(uint256 _requestID) external {             // should be called by the recycler
 
     CollectionRequest storage collection = collectionRequests[_requestID];
 
     // Ensure the request is accepted and not already completed
 
-    if(collection.assignedCollector != msg.sender) revert waste.NOT_ASSIGNED();
+   if(collection.recyclerAddress != msg.sender) revert waste. ONLY_A_RECYCLER();
 
     if(!collection.isAccepted) revert waste.NOT_ACCEPTED_YET();
 
@@ -320,11 +272,6 @@ contract WasteManagement{
 
     escrowContract.releaseEscrow(collection.escrowRequestID);
 
-    // Set the collector's availability back to true
-    Collector storage collector = collectors[msg.sender];
-
-    collector.isAvailable = true;
-
     // Emit an event indicating the completion of the request
     emit RequestConfirmed(_requestID, msg.sender);
 
@@ -334,13 +281,9 @@ contract WasteManagement{
     function cancelRequestAndRefund(uint256 _requestID) external {
 
     CollectionRequest storage collection = collectionRequests[_requestID];
-    Collector storage collector = collectors[msg.sender];
 
     // Ensure only the recycler or the collector can cancel the request
-    if(
-        msg.sender != collection.recyclerAddress || msg.sender != collector.collectorAddress
-      
-    ) revert  waste.NOT_AUTHORIZED();
+    if(  msg.sender != collection.recyclerAddress )  revert  waste.NOT_AUTHORIZED();
 
     if(collection.isCompleted) revert waste.ALREADY_COMPLETED(); // Ensure the request isn't completed
 
@@ -351,10 +294,9 @@ contract WasteManagement{
     collection.isCompleted = true;
 
     emit CollectionRequestCanceled(_requestID);
+    
     }
 
 
 
 }
-
-
