@@ -19,7 +19,7 @@ describe("MarketPlaceContract", function () {
     const categoryLib = await CategoryLib.deploy();
     
   
-    console.log("CategoryLib deployed to:", categoryLib.target.toString()); // Check the address
+    // console.log("CategoryLib deployed to:", categoryLib.target.toString()); // Check the address
   
     // Deploy the MarketPlaceContract with the linked library and wrap the address in an array
     const MarketPlaceContract = await ethers.getContractFactory("MarketPlaceContract", {
