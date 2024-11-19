@@ -36,27 +36,36 @@ contract WasteManagement {
     event RequestAccepted(uint256 requestID, address collectorAddress);
     event RequestConfirmed(uint256 requestID, address collectorAddress);
     event CollectionRequestCanceled(uint requestID);
-
+    event NewUserJoined(address userAddress, int32 latitude, int32 longitude);
+    
     mapping(address => User) public users;
 
-    function createUser() external {
-        User storage user = users[msg.sender];
-
-        if (user.isRegistered == true) revert waste.REGISTERED();
-
-        uint256 _id = numberOfUsers + 1;
-        user.id = _id;
-        user.userAddress = msg.sender;
-
-        user.isRegistered = true;
-
-        numberOfUsers++;
+     /** 
+     * @notice Creates a new user.
+     * @dev accessible only to an unregistered user.
+     * @dev callable internally by functions when uploading/creating waste pickup requests
+     */
+    function _createUser(address _user) internal {
+        User storage user = users[_user];
+        
+        if (user.isRegistered) revert waste.REGISTERED();
+        
+        user.id = ++numberOfUsers; // Increment and assign ID
+        user.userAddress = _user; 
+        user.isRegistered = true; 
     }
 
-    function setUserLocation(int32 latitude, int32 longitude) external {
-        if (!users[msg.sender].isRegistered) revert waste.NOT_REGISTERED();
-
-        users[msg.sender].location = Coordinates(latitude, longitude);
+    /** 
+     * @notice Sets the user's location.
+     * @param _latitude The latitude of the user's location.
+     * @param _longitude The longitude of the user's location.
+     * @dev accessible only to registered users.
+     * @dev callable internally by functions when uploading/creating waste pickup requests
+     */
+    function _setUserLocation(address _user, int32 _latitude, int32 _longitude) internal {
+        if (!users[_user].isRegistered) revert waste.NOT_REGISTERED();
+        
+        users[_user].location = Coordinates(_latitude, _longitude);
     }
 
     // function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, bool isRegistered ){
@@ -260,12 +269,19 @@ contract WasteManagement {
         address _recyclerAddress,
         uint256 _offerId,
         uint256 _weight,
-        uint256 _price
+        uint256 _price,
+        int32 _latitude, 
+        int32 _longitude
     ) external {
         User memory user = users[msg.sender];
         Recycler storage recycler = recyclers[_recyclerAddress];
+        
         // Ensure user and recycler are registered
-        if (!user.isRegistered) revert waste.NOT_REGISTERED();
+        if (!user.isRegistered) {
+            _createUser(msg.sender);
+            _setUserLocation(msg.sender, _latitude, _longitude);
+            emit NewUserJoined(msg.sender, _latitude, _longitude);
+        }
 
         if (!recycler.isRegistered) revert waste.RECYCLERNOTFOUND();
 

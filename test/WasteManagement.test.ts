@@ -18,42 +18,8 @@ describe("WasteManagement Contract", function () {
 
     return { wasteManagement, escrow, owner, user1, user2, recycler, collector, otherCollector };
   }
-
-  describe("User Management", function () {
-    it("Should allow a user to register", async function () {
-      const { wasteManagement, user1 } = await loadFixture(deployFixture);
-
-      await wasteManagement.connect(user1).createUser();
-      const user = await wasteManagement.users(user1.address);
-
-      expect(user.isRegistered).to.be.true;
-      expect(user.id).to.equal(1);
-    });
-
-    it("Should not allow a user to register twice", async function () {
-      const { wasteManagement, user1 } = await loadFixture(deployFixture);
-
-      await wasteManagement.connect(user1).createUser();
-      await expect(wasteManagement.connect(user1).createUser()).to.be.revertedWithCustomError(wasteManagement, "REGISTERED");
-    });
-
-    it("Should set a user’s location", async function () {
-      const { wasteManagement, user1 } = await loadFixture(deployFixture);
-
-      await wasteManagement.connect(user1).createUser();
-      await wasteManagement.connect(user1).setUserLocation(12345, 67890);
-
-      const user = await wasteManagement.users(user1.address);
-      expect(user.location.latitude).to.equal(12345);
-      expect(user.location.longitude).to.equal(67890);
-    });
-
-    it("Should revert if unregistered user sets location", async function () {
-      const { wasteManagement, user1 } = await loadFixture(deployFixture);
-
-      await expect(wasteManagement.connect(user1).setUserLocation(12345, 67890)).to.be.revertedWithCustomError(wasteManagement, "NOT_REGISTERED");
-    });
-  });
+  
+  // removed direct user registration and user management test as a result of modifying the contract
 
   describe("Recycler Management", function () {
     it("Should allow registering a recycler", async function () {
@@ -124,9 +90,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).createUser();
-
-      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, 100);
+      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, 100, 6, 5);
 
       const request = await wasteManagement.showRequest(1);
       expect(request.userAddress).to.equal(user1.address);
@@ -140,8 +104,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).createUser();
-      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, ethers.parseEther("1"));
+      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
 
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
       const request = await wasteManagement.showRequest(1);
@@ -155,10 +118,9 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).createUser();
-
+      
       await expect(
-          wasteManagement.connect(user1).makeRequest(recycler.address, 0, 3, ethers.parseEther("1"))
+          wasteManagement.connect(user1).makeRequest(recycler.address, 0, 3, ethers.parseEther("1"), 6, 5)
       ).to.be.revertedWithCustomError(wasteManagement, "LOWER_THAN_MINQUANTITY");
   });
 
@@ -172,12 +134,13 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
   
       // Register user and make a request
-      await wasteManagement.connect(user1).createUser();
       await wasteManagement.connect(user1).makeRequest(
           recycler.address,
           0,
           10, // Weight
-          ethers.parseEther("1") // Valued at 1 Ether
+          ethers.parseEther("1"), // Valued at 1 Ether
+          6,
+          5
       );
   
       // Try to accept the request with insufficient deposit
@@ -193,8 +156,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).createUser();
-      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, ethers.parseEther("1"));
+      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
 
       await wasteManagement.connect(collector).confirmRequest(1);
@@ -210,10 +172,9 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).createUser();
       await wasteManagement
           .connect(user1)
-          .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"));
+          .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
 
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
           value: ethers.parseEther("1"),
@@ -230,11 +191,9 @@ describe("WasteManagement Contract", function () {
 
     await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-    await wasteManagement.connect(user1).createUser();
-
     await wasteManagement
         .connect(user1)
-        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"));
+        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
 
     await wasteManagement.connect(user1).userCancelRequest(1);
 
@@ -247,10 +206,9 @@ it("Should revert if a user tries to cancel an accepted request", async function
 
     await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-    await wasteManagement.connect(user1).createUser();
     await wasteManagement
         .connect(user1)
-        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"));
+        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5) ;
 
     await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
         value: ethers.parseEther("1"),
@@ -267,10 +225,9 @@ it("Should revert if a user tries to cancel a completed request", async function
 
     await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-    await wasteManagement.connect(user1).createUser();
     await wasteManagement
         .connect(user1)
-        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"));
+        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
 
     await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
         value: ethers.parseEther("1"),
