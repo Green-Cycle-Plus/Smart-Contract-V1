@@ -1,185 +1,246 @@
-import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { expect } from "chai";
 
 describe("WasteManagement Contract", function () {
-    let wasteManagement: any;
-    let escrowContract: any;
-    let user: any, recycler: any, collector: any;
+  async function deployFixture() {
+    const [owner, user1, user2, recycler, collector, otherCollector] = await ethers.getSigners();
 
-    async function deployFixture() {
-        // Deploy mock escrow contract
-        escrowContract = await ethers.deployContract("EscrowContract");
+    // Deploy Escrow contract
+    const Escrow = await ethers.getContractFactory("EscrowContract");
+    const escrow = await Escrow.deploy();
+  
 
-        // Deploy WasteManagement contract
-        wasteManagement = await ethers.deployContract("WasteManagement", [await escrowContract.getAddress()]);
+    // Deploy WasteManagement contract
+    const WasteManagement = await ethers.getContractFactory("WasteManagement");
+    const wasteManagement = await WasteManagement.deploy(escrow.getAddress());
+  
 
-        // Get signers
-        [user, recycler, collector] = await ethers.getSigners();
+    return { wasteManagement, escrow, owner, user1, user2, recycler, collector, otherCollector };
+  }
 
-        return { wasteManagement, escrowContract, user, recycler, collector };
-    }
+  // removed direct user registration and user management test as a result of modifying the contract
 
-    describe("User Registration", function () {
-        it("should allow a user to register", async function () {
-            const { wasteManagement, user } = await loadFixture(deployFixture);
-            await wasteManagement.connect(user).createUser();
-            const registeredUser = await wasteManagement.users(user.address);
-            expect(registeredUser.isRegistered).to.be.true;
-        });
+  describe("Recycler Management", function () {
+    it("Should allow registering a recycler", async function () {
+      const { wasteManagement, recycler } = await loadFixture(deployFixture);
 
-        it("should not allow a user to register twice", async function () {
-            const { wasteManagement, user } = await loadFixture(deployFixture);
-            await wasteManagement.connect(user).createUser();
-            await expect(wasteManagement.connect(user).createUser()).to.be.revertedWithCustomError(wasteManagement, "REGISTERED");
-        });
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+
+      const recyclerInfo = await wasteManagement.recyclers(recycler.address);
+      expect(recyclerInfo.isRegistered).to.be.true;
+      expect(recyclerInfo.location).to.equal("City A");
     });
 
-    describe("Recycler Registration", function () {
-        it("should allow a recycler to register", async function () {
-            const { wasteManagement, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            const registeredRecycler = await wasteManagement.recyclers(recycler.address);
-            expect(registeredRecycler.isRegistered).to.be.true;
-        });
+    it("Should not allow duplicate recycler registration", async function () {
+      const { wasteManagement, recycler } = await loadFixture(deployFixture);
 
-        it("should not allow a recycler to register twice", async function () {
-            const { wasteManagement, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await expect(wasteManagement.connect(recycler).createRecycler(recycler.address, "Location B", 4)).to.be.revertedWithCustomError(wasteManagement, "REGISTERED");
-        });
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await expect(wasteManagement.createRecycler(recycler.address, "City B", 789, 101)).to.be.revertedWithCustomError(wasteManagement, "RECYCLER_ALREADY_REGISTERED");
     });
 
-    describe("Offer Management", function () {
-        it("should allow a recycler to create an offer", async function () {
-            const { wasteManagement, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await wasteManagement.connect(recycler).createOffer("Plastic", ethers.parseEther("0.5"), 10);
-        });
+    it("Should revert registration with invalid coordinates", async function () {
+      const { wasteManagement, recycler } = await loadFixture(deployFixture);
+
+      await expect(wasteManagement.createRecycler(recycler.address, "City A", 0, 456)).to.be.revertedWithCustomError(wasteManagement, "INVALIDLATITUTUDE");
+      await expect(wasteManagement.createRecycler(recycler.address, "City A", 123, 0)).to.be.revertedWithCustomError(wasteManagement, "INVALIDLONGITUDE");
+    });
+  });
+
+  describe("Offer Management", function () {
+    it("Should allow a recycler to create an offer", async function () {
+      const { wasteManagement, recycler } = await loadFixture(deployFixture);
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+
+      const offer = await wasteManagement.recyclerOffer(recycler.address, 0);
+      expect(offer.name).to.equal("Plastic");
+      expect(offer.pricePerKg).to.equal(10);
+      expect(offer.minQuantity).to.equal(5);
     });
 
-    describe("Collection Request Management", function () {
-        it("should allow a user to make a collection request", async function () {
-            const { wasteManagement, user, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(user).createUser();
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await wasteManagement.connect(recycler).createOffer("Plastic", ethers.parseEther("0.5"), 10);
-            await wasteManagement.connect(user).makeRequest(recycler.address, "Plastic", 15, ethers.parseEther("7.5"));
-            const request = await wasteManagement.collectionRequests(1); // Assuming it's the first request
-            expect(request.userAddress).to.equal(user.address);
-            expect(request.recyclerAddress).to.equal(recycler.address);
-            expect(request.weight).to.equal(15);
-        });
+    it("Should revert creating an offer by unregistered recycler", async function () {
+      const { wasteManagement, user1 } = await loadFixture(deployFixture);
 
-        it("should not allow requests below minimum quantity", async function () {
-            const { wasteManagement, user, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(user).createUser();
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await wasteManagement.connect(recycler).createOffer("Plastic", ethers.parseEther("0.5"), 10);
-            await expect(wasteManagement.connect(user).makeRequest(recycler.address, "Plastic", 5, ethers.parseEther("2.5"))).to.be.revertedWithCustomError(wasteManagement, 'LOWER_THAN_MINQUANTITY');
-        });
-        
-        it("should allow a recycler to accept a collection request", async function () {
-            const { wasteManagement, user, recycler, collector } = await loadFixture(deployFixture);
-            
-            await wasteManagement.connect(user).createUser();
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await wasteManagement.connect(recycler).createOffer("Plastic", ethers.parseEther("0.5"), 10);
-            await wasteManagement.connect(user).makeRequest(recycler.address, "Plastic", 15, ethers.parseEther("7.5"));
-        
-            // Register the collector and set them as available
-            await wasteManagement.connect(collector).createCollector(collector.address); // Ensure collector is registered
-        
-            await wasteManagement.connect(recycler).acceptRequest(1, collector.address);
-            
-            const request = await wasteManagement.collectionRequests(1);
-            expect(request.isAccepted).to.be.true;
-            expect(request.assignedCollector).to.equal(collector.address);
-        });
-        
-        it("should allow a collector to confirm collection completion", async function () {
-            const { wasteManagement, user, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(user).createUser();
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await wasteManagement.connect(recycler).createOffer("Plastic", ethers.parseEther("0.5"), 10);
-            await wasteManagement.connect(user).makeRequest(recycler.address, "Plastic", 15, ethers.parseEther("7.5"));
-
-            // Register the collector and set them as available
-            await wasteManagement.connect(collector).createCollector(collector.address); // Ensure collector is registered
-
-            await wasteManagement.connect(recycler).acceptRequest(1, collector.address);
-
-            // Simulate confirming the collection
-            await wasteManagement.connect(collector).confirmRequest(1);
-
-            const request = await wasteManagement.collectionRequests(1);
-            expect(request.isCompleted).to.be.true;
-        });
-
-        it("should allow cancellation of requests by authorized parties only", async function () {
-            const { wasteManagement, user, recycler } = await loadFixture(deployFixture);
-            await wasteManagement.connect(user).createUser();
-            await wasteManagement.connect(recycler).createRecycler(recycler.address, "Location A", 5);
-            await wasteManagement.connect(recycler).createOffer("Plastic", ethers.parseEther("0.5"), 10);
-            await wasteManagement.connect(user).makeRequest(recycler.address, "Plastic", 15, ethers.parseEther("7.5"));
-
-            // Only recycler or assigned collector can cancel
-            await expect(wasteManagement.connect(user).cancelRequestAndRefund(1)).to.be.revertedWithCustomError(wasteManagement, "NOT_AUTHORIZED");
-
-            // Recycler cancels the request
-            await wasteManagement.connect(recycler).cancelRequestAndRefund(1);
-
-            const request = await wasteManagement.collectionRequests(1);
-            expect(request.isCompleted).to.be.true;
-        });
+      await expect(wasteManagement.connect(user1).createOffer("Plastic", 10, 5)).to.be.revertedWithCustomError(wasteManagement, "INVALIDRECYCLER");
     });
 
-//     // describe("Fuzz Testing Collection Requests", function () {
-//     //     it("should handle random weight inputs for collection requests correctly", async function () {
-//     //       const {wasteManagement,user,recycler} = await loadFixture(deployFixture);
+    it("Should update an offer", async function () {
+      const { wasteManagement, recycler } = await loadFixture(deployFixture);
 
-//     //       // Register user and recycler
-//     //       await wasteManagement.connect(user).createUser();
-//     //       await wasteManagement.connect(recycler).createRecycler(recycler.address,"Location A",5);
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
 
-//     //       // Create an offer with minimum quantity of 10 kg
-//     //       const minQuantity = 10;
-//     //       const pricePerKg = ethers.parseEther('0.5');
-//     //       await wasteManagement.connect(recycler).createOffer("Plastic",pricePerKg,minQuantity);
+      await wasteManagement
+        .connect(recycler)
+        .updateOffer(0, "Updated Plastic", recycler.address, 15, 3);
+      
+       // Retrieve updated offer
+      const updatedOffer = await wasteManagement.connect(recycler).viewOffer(recycler.address, 0);
+      expect(updatedOffer.name).to.equal("Updated Plastic");
+      expect(updatedOffer.pricePerKg).to.equal(15);
+      expect(updatedOffer.minQuantity).to.equal(3);
+    });
+  });
 
-//     //       for (let i = 0; i < 10; i++) {
-//     //           // Generate random weight between 1 and 20 kg
-//     //           const randomWeight = Math.floor(Math.random() * (20 - 1 + 1)) + 1;
+  describe("Request Management", function () {
+    it("Should allow a user to make a waste collection request", async function () {
+      const { wasteManagement, user1, recycler } = await loadFixture(deployFixture);
 
-//     //           if (randomWeight < minQuantity) {
-//     //               // Expect failure for weights below minimum quantity
-//     //               await expect(
-//     //                   wasteManagement.connect(user).makeRequest(
-//     //                       recycler.address,
-//     //                       "Plastic",
-//     //                       randomWeight,
-//     //                       ethers.parseEther((randomWeight * Number(pricePerKg)).toString())
-//     //                   )
-//     //               ).to.be.revertedWithCustomError(wasteManagement, 'LOWER_THAN_MINQUANTITY');
-//     //           } else {
-//     //               // Expect success for valid weights
-//     //               let txResponse = await (await wasteManagement.connect(user)
-//     //                   .makeRequest(
-//     //                       recycler.address,
-//     //                       "Plastic",
-//     //                       randomWeight,
-//     //                       ethers.parseEther((randomWeight * Number(pricePerKg)).toString())
-//     //                   ) ).wait();
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
 
-//     //                   console.log(txResponse);
+      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, 100, 6, 5);
 
-//     //               let requestEvent=txResponse.events?.find((event: any) => event.event === 'RequestCreated');
-//     //               console.log("Request Event", requestEvent);
-//     //               expect(requestEvent?.args?.userAddress).to.equal(user.address); 
-//     //               expect(requestEvent?.args?.recyclerAddress).to.equal(recycler.address); 
-//     //               expect(requestEvent?.args?.weight).to.equal(randomWeight); 
-//     //           }
-//     //       }
-//     //   });
-//   });
+      const request = await wasteManagement.showRequest(1);
+      expect(request.userAddress).to.equal(user1.address);
+      expect(request.recyclerAddress).to.equal(recycler.address);
+      expect(request.weight).to.equal(10);
+      expect(request.valuedAt).to.equal(100);
+    });
+
+    it("Should allow a recycler to accept a request", async function () {
+      const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
+
+      await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
+      const request = await wasteManagement.showRequest(1);
+
+      expect(request.isAccepted).to.be.true;
+      expect(request.assignedCollector).to.equal(collector.address);
+    });
+
+    it("Should revert if a user tries to make a request with insufficient weight", async function () {
+      const { wasteManagement, user1, recycler } = await loadFixture(deployFixture);
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+
+      await expect(
+          wasteManagement.connect(user1).makeRequest(recycler.address, 0, 3, ethers.parseEther("1"), 6, 5)
+      ).to.be.revertedWithCustomError(wasteManagement, "LOWER_THAN_MINQUANTITY");
+  });
+
+
+
+    it("Should revert if recycler deposit amount less than valuedAt by user", async function () {
+      const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+  
+      // Register recycler and create an offer
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+  
+      // Register user and make a request
+      await wasteManagement.connect(user1).makeRequest(
+          recycler.address,
+          0,
+          10, // Weight
+          ethers.parseEther("1"), // Valued at 1 Ether
+          6,
+          5
+      );
+  
+      // Try to accept the request with insufficient deposit
+      await expect(
+          wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
+              value: ethers.parseEther("0.5"), // Less than 1 Ether
+          })
+      ).to.be.revertedWithCustomError(wasteManagement, "AMOUNT_LESS_THAN_AMOUNT_VALUED");
+  });
+
+    it("Should allow the collector to confirm the request", async function () {
+      const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+      await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
+      await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
+
+      await wasteManagement.connect(collector).confirmRequest(1);
+      const request = await wasteManagement.showRequest(1);
+
+      expect(request.isCompleted).to.be.true;
+    });
+
+    it("Should revert if a non-assigned collector tries to confirm the request", async function () {
+      const { wasteManagement, user1, recycler, collector, otherCollector } = await loadFixture(
+          deployFixture
+      );
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+      await wasteManagement
+          .connect(user1)
+          .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
+
+      await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
+          value: ethers.parseEther("1"),
+      });
+
+      await expect(wasteManagement.connect(otherCollector).confirmRequest(1)).to.be.revertedWithCustomError(
+          wasteManagement,
+          "NOT_ASSIGNED"
+      );
+  });
+
+  it("Should allow a user to cancel their request if it has not been accepted", async function () {
+    const { wasteManagement, user1, recycler } = await loadFixture(deployFixture);
+
+    await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+    await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+    await wasteManagement
+        .connect(user1)
+        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
+
+    await wasteManagement.connect(user1).userCancelRequest(1);
+
+    const request = await wasteManagement.showRequest(1);
+    expect(request.status).to.be.equal(3);
+});
+
+it("Should revert if a user tries to cancel an accepted request", async function () {
+    const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+
+    await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+    await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+    await wasteManagement
+        .connect(user1)
+        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5) ;
+
+    await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
+        value: ethers.parseEther("1"),
+    });
+
+    await expect(wasteManagement.connect(user1).userCancelRequest(1)).to.be.revertedWithCustomError(
+        wasteManagement,
+        "ALREADY_ACCEPTED"
+    );
+});
+
+it("Should revert if a user tries to cancel a completed request", async function () {
+    const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+
+    await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+    await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+    await wasteManagement
+        .connect(user1)
+        .makeRequest(recycler.address, 0, 10, ethers.parseEther("1"), 6, 5);
+
+    await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
+        value: ethers.parseEther("1"),
+    });
+
+    await wasteManagement.connect(collector).confirmRequest(1);
+
+    await expect(wasteManagement.connect(user1).userCancelRequest(1)).to.be.revertedWithCustomError(
+        wasteManagement,
+        "ALREADY_COMPLETED"
+    );
+});
+
+  });
 });
