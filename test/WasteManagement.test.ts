@@ -18,7 +18,7 @@ describe("WasteManagement Contract", function () {
 
     return { wasteManagement, escrow, owner, user1, user2, recycler, collector, otherCollector };
   }
-
+  
   // removed direct user registration and user management test as a result of modifying the contract
 
   describe("Recycler Management", function () {
@@ -90,7 +90,6 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-
       await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, 100, 6, 5);
 
       const request = await wasteManagement.showRequest(1);
@@ -119,7 +118,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-
+      
       await expect(
           wasteManagement.connect(user1).makeRequest(recycler.address, 0, 3, ethers.parseEther("1"), 6, 5)
       ).to.be.revertedWithCustomError(wasteManagement, "LOWER_THAN_MINQUANTITY");

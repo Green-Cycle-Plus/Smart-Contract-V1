@@ -68,7 +68,6 @@ contract WasteManagement {
         users[_user].location = Coordinates(_latitude, _longitude);
     }
 
-
     // function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, bool isRegistered ){
 
     //     User storage user = users[_userAddress];
@@ -276,6 +275,7 @@ contract WasteManagement {
     ) external {
         User memory user = users[msg.sender];
         Recycler storage recycler = recyclers[_recyclerAddress];
+        
         // Ensure user and recycler are registered
         if (!user.isRegistered) {
             _createUser(msg.sender);
