@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {waste} from "./libraries/Wastelibrary.sol";
 import {IEscrow} from "./IEscrow.sol";
 
-contract WasteManagement {
+    contract WasteManagement {
     IEscrow public escrowContract; // Address of the Escrow contract
 
     constructor(address _escrowContract) {
@@ -209,15 +209,20 @@ contract WasteManagement {
 
     uint256 public numOfCollector;
 
+    address[] private allCollectorAddresses;
+
     struct Collector {
         uint256 id;
+        string name;
         address collectorAddress;
+        string contact;
+        uint256 numberOfWasteCollected;
         bool isAvailable;
     }
 
-    mapping(address => mapping(address => Collector)) public collectors; //RecyclerAddress => Collector Address => Collection.
+    mapping(address => mapping(address => Collector)) internal  collectors; //RecyclerAddress => Collector Address => Collection.
 
-    function createCollector(address _collectorAddress) external {
+    function createCollector(address _collectorAddress,string memory _name, string memory _contact ) external {
         //should be set by recyclers/
 
         Recycler storage recycler = recyclers[msg.sender];
@@ -230,10 +235,31 @@ contract WasteManagement {
         Collector storage collector = collectors[msg.sender][_collectorAddress];
 
         collector.id = _id;
+        collector.name = _name;
         collector.collectorAddress = _collectorAddress;
+        collector.contact = _contact;
+        collector.numberOfWasteCollected = 0;
         collector.isAvailable = true;
 
+        // populating collector addresses array
+        bool exists = false;
+        for (uint i = 0; i < allCollectorAddresses.length; i++) {
+            if (allCollectorAddresses[i] == _collectorAddress) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            allCollectorAddresses.push(_collectorAddress);
+        }
+
         numOfCollector++;
+    }
+
+
+      // New function to get all collector addresses
+    function getAllCollectorAddresses() external view returns (address[] memory) {
+        return allCollectorAddresses;
     }
 
     uint256 public numOfRequest;
@@ -333,6 +359,7 @@ contract WasteManagement {
     ) external payable {
         //should be called by the recycler
 
+        Collector storage collector = collectors[msg.sender][_collectorAddress];
         WasteCollectionRequest storage req = userWasteRequests[_requestID];
 
         if (req.recyclerAddress != msg.sender) revert waste.ONLY_A_RECYCLER();
@@ -351,6 +378,10 @@ contract WasteManagement {
         req.isAccepted = true;
         //collection.isCompleted = false;  // Mark as in progress
         req.assignedCollector = _collectorAddress;
+
+        collector.numberOfWasteCollected++;
+
+        
 
         // Update collector availability
         // collector.isAvailable = false;
@@ -489,6 +520,7 @@ contract WasteManagement {
     // If no match is found, revert
     revert waste.NOT_FOUND();
 }
+
 
 
 }
