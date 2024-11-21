@@ -209,7 +209,6 @@ import {IEscrow} from "./IEscrow.sol";
 
     uint256 public numOfCollector;
 
-    address[] private allCollectorAddresses;
 
     struct Collector {
         uint256 id;
@@ -221,6 +220,8 @@ import {IEscrow} from "./IEscrow.sol";
     }
 
     mapping(address => mapping(address => Collector)) internal  collectors; //RecyclerAddress => Collector Address => Collection.
+
+    mapping(address => address[]) private recyclerCollectors; // recycler address => array of collector addresses
 
     function createCollector(address _collectorAddress,string memory _name, string memory _contact ) external {
         //should be set by recyclers/
@@ -241,25 +242,31 @@ import {IEscrow} from "./IEscrow.sol";
         collector.numberOfWasteCollected = 0;
         collector.isAvailable = true;
 
-        // populating collector addresses array
+        // Add collector to recycler's collectors list 
         bool exists = false;
-        for (uint i = 0; i < allCollectorAddresses.length; i++) {
-            if (allCollectorAddresses[i] == _collectorAddress) {
+        for (uint i = 0; i < recyclerCollectors[msg.sender].length; i++) {
+            if (recyclerCollectors[msg.sender][i] == _collectorAddress) {
                 exists = true;
                 break;
             }
         }
         if (!exists) {
-            allCollectorAddresses.push(_collectorAddress);
+            recyclerCollectors[msg.sender].push(_collectorAddress);
         }
-
+                                                
         numOfCollector++;
     }
 
 
-      // New function to get all collector addresses
-    function getAllCollectorAddresses() external view returns (address[] memory) {
-        return allCollectorAddresses;
+      // New function to get all collectors for a specific recycler
+    function getRecyclerCollectors(address _recyclerAddress) 
+        external 
+        view 
+        returns (address[] memory) 
+    {
+        if (!recyclers[_recyclerAddress].isRegistered) revert waste.RECYCLERNOTFOUND();
+        
+        return recyclerCollectors[_recyclerAddress];
     }
 
     uint256 public numOfRequest;
