@@ -429,4 +429,66 @@ contract WasteManagement {
 
         emit CollectionRequestCanceled(_requestID);
     }
+
+
+     function getUserRole(address _userAddress) external view returns (
+    string memory role,
+    uint256 id,
+    address addr,
+    int32 latitude,
+    int32 longitude,
+    string memory location,
+    bool isRegistered
+    ) {
+    // Check if the address is a user
+    if (users[_userAddress].isRegistered) {
+        User storage user = users[_userAddress];
+        return (
+            "User",
+            user.id,
+            user.userAddress,
+            user.location.latitude,
+            user.location.longitude,
+            "",
+            user.isRegistered
+        );
+    }
+
+    // Check if the address is a recycler
+    if (recyclers[_userAddress].isRegistered) {
+        Recycler storage recycler = recyclers[_userAddress];
+        Coordinates storage coord = recyclerCordinate[_userAddress];
+        return (
+            "Recycler",
+            recycler.id,
+            recycler.recyclerAddress,
+            coord.latitude,
+            coord.longitude,
+            recycler.location,
+            recycler.isRegistered
+        );
+    }
+
+    // Check if the address is a collector
+    for (uint256 i = 0; i < recyclersAddresses.length; i++) {
+        address recyclerAddr = recyclersAddresses[i];
+        if (collectors[recyclerAddr][_userAddress].collectorAddress != address(0)) {
+            Collector storage collector = collectors[recyclerAddr][_userAddress];
+            return (
+                "Collector",
+                collector.id,
+                collector.collectorAddress,
+                0,
+                0,
+                "",
+                collector.isAvailable
+            );
+        }
+    }
+
+    // If no match is found, revert
+    revert waste.NOT_FOUND();
+}
+
+
 }
