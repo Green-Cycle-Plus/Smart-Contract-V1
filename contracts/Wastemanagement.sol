@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {waste} from "./libraries/Wastelibrary.sol";
 import {IEscrow} from "./IEscrow.sol";
 
-    contract WasteManagement {
+  contract WasteManagement {
     IEscrow public escrowContract; // Address of the Escrow contract
 
     constructor(address _escrowContract) {
@@ -210,6 +210,7 @@ import {IEscrow} from "./IEscrow.sol";
     uint256 public numOfCollector;
 
 
+   
     struct Collector {
         uint256 id;
         string name;
@@ -217,6 +218,16 @@ import {IEscrow} from "./IEscrow.sol";
         string contact;
         uint256 numberOfWasteCollected;
         bool isAvailable;
+    }
+
+    struct CollectorInfo {
+        uint256 id;
+        string name;
+        address collectorAddress;
+        string contact;
+        uint256 numberOfWasteCollected;
+        bool isAvailable;
+        address recyclerAddress;
     }
 
     mapping(address => mapping(address => Collector)) internal  collectors; //RecyclerAddress => Collector Address => Collection.
@@ -267,6 +278,37 @@ import {IEscrow} from "./IEscrow.sol";
         if (!recyclers[_recyclerAddress].isRegistered) revert waste.RECYCLERNOTFOUND();
         
         return recyclerCollectors[_recyclerAddress];
+    }                                                              
+    
+
+    //Get detailed information about all collectors for a recycler
+
+    function getRecyclerCollectorsDetails(address _recyclerAddress)
+        external
+        view
+        returns (CollectorInfo[] memory)
+    {
+        if (!recyclers[_recyclerAddress].isRegistered) revert waste.RECYCLERNOTFOUND();
+        
+        address[] memory collectorAddresses = recyclerCollectors[_recyclerAddress];
+        CollectorInfo[] memory collectorsInfo = new CollectorInfo[](collectorAddresses.length);
+        
+        for (uint i = 0; i < collectorAddresses.length; i++) {
+            address collectorAddr = collectorAddresses[i];
+            Collector storage collector = collectors[_recyclerAddress][collectorAddr];
+            
+            collectorsInfo[i] = CollectorInfo({
+                id: collector.id,
+                name: collector.name,
+                collectorAddress: collector.collectorAddress,
+                contact: collector.contact,
+                numberOfWasteCollected: collector.numberOfWasteCollected,
+                isAvailable: collector.isAvailable,
+                recyclerAddress: _recyclerAddress
+            });
+        }
+        
+        return collectorsInfo;
     }
 
     uint256 public numOfRequest;
@@ -294,6 +336,8 @@ import {IEscrow} from "./IEscrow.sol";
     }
 
     mapping(uint256 => WasteCollectionRequest) public userWasteRequests;
+    //mapping to track collector requests
+    mapping(address => uint256[]) private collectorRequests; // collector address => array of request IDs
 
     event RequestCancelled(uint _requestId);
 
@@ -303,7 +347,7 @@ import {IEscrow} from "./IEscrow.sol";
         uint256 _offerId,
         uint256 _weight,
         uint256 _price,
-        int32 _latitude, 
+        int32 _latitude,        
         int32 _longitude
     ) external {
         User memory user = users[msg.sender];
@@ -388,10 +432,9 @@ import {IEscrow} from "./IEscrow.sol";
 
         collector.numberOfWasteCollected++;
 
-        
+        // Add request to collector's requests array
+        collectorRequests[_collectorAddress].push(_requestID);
 
-        // Update collector availability
-        // collector.isAvailable = false;
 
         // Create the escrow and then retrieve the current escrow ID from EscrowContract
         uint256 escrowId = escrowContract.createEscrow{value: req.valuedAt}(
@@ -402,6 +445,58 @@ import {IEscrow} from "./IEscrow.sol";
 
         // Emit an event to indicate request acceptance
         emit RequestAccepted(_requestID, _collectorAddress);
+    }
+
+
+    //struct for detailed request information
+    struct CollectorRequestDetails {
+        uint256 requestId;
+        address userAddress;
+        address recyclerAddress;
+        uint256 offerId;
+        uint256 weight;
+        uint256 valuedAt;
+        RequestStatus status;
+        bool isCompleted;
+        bool isAccepted;
+    }
+
+    // Function to get all request IDs assigned to a collector
+    function getCollectorRequestIds(address _collectorAddress) 
+        external 
+        view 
+        returns (uint256[] memory) 
+    {
+        return collectorRequests[_collectorAddress];
+    }
+
+
+    // Function to get detailed information about all requests assigned to a collector
+    function getCollectorRequests(address _collectorAddress)
+        external
+        view
+        returns (CollectorRequestDetails[] memory)
+    {
+        uint256[] memory requestIds = collectorRequests[_collectorAddress];
+        CollectorRequestDetails[] memory requests = new CollectorRequestDetails[](requestIds.length);
+
+        for (uint256 i = 0; i < requestIds.length; i++) {
+            WasteCollectionRequest storage request = userWasteRequests[requestIds[i]];
+            
+            requests[i] = CollectorRequestDetails({
+                requestId: request.id,
+                userAddress: request.userAddress,
+                recyclerAddress: request.recyclerAddress,
+                offerId: request.offerId,
+                weight: request.weight,
+                valuedAt: request.valuedAt,
+                status: request.status,
+                isCompleted: request.isCompleted,
+                isAccepted: request.isAccepted
+            });
+        }
+
+        return requests;
     }
 
     // should be called by the collector
@@ -469,7 +564,7 @@ import {IEscrow} from "./IEscrow.sol";
     }
 
 
-     function getUserRole(address _userAddress) external view returns (
+    function getUserRole(address _userAddress) external view returns (
     string memory role,
     uint256 id,
     address addr,
@@ -531,3 +626,4 @@ import {IEscrow} from "./IEscrow.sol";
 
 
 }
+
