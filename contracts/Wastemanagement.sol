@@ -68,12 +68,7 @@ import {IEscrow} from "./IEscrow.sol";
         users[_user].location = Coordinates(_latitude, _longitude);
     }
 
-    // function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, bool isRegistered ){
 
-    //     User storage user = users[_userAddress];
-
-    //     return (  user.id , user.userAddress , user.location , user.isRegistered );
-    // }
 
     /************************************************************************************************************************************************************************************/
 
@@ -219,6 +214,16 @@ import {IEscrow} from "./IEscrow.sol";
         bool isAvailable;
     }
 
+    struct CollectorInfo {
+        uint256 id;
+        string name;
+        address collectorAddress;
+        string contact;
+        uint256 numberOfWasteCollected;
+        bool isAvailable;
+        address recyclerAddress;
+    }
+
     mapping(address => mapping(address => Collector)) internal  collectors; //RecyclerAddress => Collector Address => Collection.
 
     mapping(address => address[]) private recyclerCollectors; // recycler address => array of collector addresses
@@ -258,7 +263,7 @@ import {IEscrow} from "./IEscrow.sol";
     }
 
 
-      // New function to get all collectors for a specific recycler
+    // New function to get all collectors for a specific recycler
     function getRecyclerCollectors(address _recyclerAddress) 
         external 
         view 
@@ -268,6 +273,41 @@ import {IEscrow} from "./IEscrow.sol";
         
         return recyclerCollectors[_recyclerAddress];
     }
+
+
+    
+    //Get detailed information about all collectors for a recycler
+
+    function getRecyclerCollectorsDetails(address _recyclerAddress)
+        external
+        view
+        returns (CollectorInfo[] memory)
+    {
+        if (!recyclers[_recyclerAddress].isRegistered) revert waste.RECYCLERNOTFOUND();
+        
+        address[] memory collectorAddresses = recyclerCollectors[_recyclerAddress];
+        CollectorInfo[] memory collectorsInfo = new CollectorInfo[](collectorAddresses.length);
+        
+        for (uint i = 0; i < collectorAddresses.length; i++) {
+            address collectorAddr = collectorAddresses[i];
+            Collector storage collector = collectors[_recyclerAddress][collectorAddr];
+            
+            collectorsInfo[i] = CollectorInfo({
+                id: collector.id,
+                name: collector.name,
+                collectorAddress: collector.collectorAddress,
+                contact: collector.contact,
+                numberOfWasteCollected: collector.numberOfWasteCollected,
+                isAvailable: collector.isAvailable,
+                recyclerAddress: _recyclerAddress
+            });
+        }
+        
+        return collectorsInfo;
+    }
+
+
+
 
     uint256 public numOfRequest;
 
