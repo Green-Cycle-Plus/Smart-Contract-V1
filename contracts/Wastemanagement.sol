@@ -210,6 +210,7 @@ import {IEscrow} from "./IEscrow.sol";
     uint256 public numOfCollector;
 
 
+   
     struct Collector {
         uint256 id;
         string name;
@@ -309,7 +310,6 @@ import {IEscrow} from "./IEscrow.sol";
         
         return collectorsInfo;
     }
-
 
     uint256 public numOfRequest;
 
