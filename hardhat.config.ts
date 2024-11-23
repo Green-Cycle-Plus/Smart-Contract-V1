@@ -1,16 +1,17 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, vars } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
-import * as dotenv from "dotenv";
-dotenv.config();
+// import * as dotenv from "dotenv";  if you intend using dotenv
+// dotenv.config();
 
-/** @type import('hardhat/config').HardhatUserConfig */
-module.exports = {
+const ACCOUNT_PRIVATE_KEY = vars.get("ACCOUNT_PRIVATE_KEY");
+const LISK_RPC_URL = vars.get("LISK_RPC_URL");
+const config: HardhatUserConfig = {
   solidity: "0.8.24",
   networks: {
     // for testnet
     "lisk-sepolia": {
-      url: "https://rpc.sepolia-api.lisk.com",
-      accounts: [process.env.ACCOUNT_WALLET_KEY],
+      url: `${LISK_RPC_URL}`!,
+      accounts: [`${ACCOUNT_PRIVATE_KEY}`],
       gasPrice: 1000000000,
     },
   },
@@ -25,7 +26,7 @@ module.exports = {
         chainId: 4202,
         urls: {
           apiURL: "https://sepolia-blockscout.lisk.com/api",
-          browserURL: "https://sepolia-blockscout.lisk.com",
+          browserURL: "https://sepolia-blockscout.lisk.com/",
         },
       },
     ],
@@ -34,3 +35,5 @@ module.exports = {
     enabled: false,
   },
 };
+
+export default config;

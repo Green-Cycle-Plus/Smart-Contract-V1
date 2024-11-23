@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {waste} from "./libraries/Wastelibrary.sol";
 import {IEscrow} from "./IEscrow.sol";
 
-contract WasteManagement {
+    contract WasteManagement {
     IEscrow public escrowContract; // Address of the Escrow contract
 
     constructor(address _escrowContract) {
@@ -209,15 +209,21 @@ contract WasteManagement {
 
     uint256 public numOfCollector;
 
+
     struct Collector {
         uint256 id;
+        string name;
         address collectorAddress;
+        string contact;
+        uint256 numberOfWasteCollected;
         bool isAvailable;
     }
 
-    mapping(address => mapping(address => Collector)) public collectors; //RecyclerAddress => Collector Address => Collection.
+    mapping(address => mapping(address => Collector)) internal  collectors; //RecyclerAddress => Collector Address => Collection.
 
-    function createCollector(address _collectorAddress) external {
+    mapping(address => address[]) private recyclerCollectors; // recycler address => array of collector addresses
+
+    function createCollector(address _collectorAddress,string memory _name, string memory _contact ) external {
         //should be set by recyclers/
 
         Recycler storage recycler = recyclers[msg.sender];
@@ -230,10 +236,37 @@ contract WasteManagement {
         Collector storage collector = collectors[msg.sender][_collectorAddress];
 
         collector.id = _id;
+        collector.name = _name;
         collector.collectorAddress = _collectorAddress;
+        collector.contact = _contact;
+        collector.numberOfWasteCollected = 0;
         collector.isAvailable = true;
 
+        // Add collector to recycler's collectors list 
+        bool exists = false;
+        for (uint i = 0; i < recyclerCollectors[msg.sender].length; i++) {
+            if (recyclerCollectors[msg.sender][i] == _collectorAddress) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            recyclerCollectors[msg.sender].push(_collectorAddress);
+        }
+                                                
         numOfCollector++;
+    }
+
+
+      // New function to get all collectors for a specific recycler
+    function getRecyclerCollectors(address _recyclerAddress) 
+        external 
+        view 
+        returns (address[] memory) 
+    {
+        if (!recyclers[_recyclerAddress].isRegistered) revert waste.RECYCLERNOTFOUND();
+        
+        return recyclerCollectors[_recyclerAddress];
     }
 
     uint256 public numOfRequest;
@@ -333,6 +366,7 @@ contract WasteManagement {
     ) external payable {
         //should be called by the recycler
 
+        Collector storage collector = collectors[msg.sender][_collectorAddress];
         WasteCollectionRequest storage req = userWasteRequests[_requestID];
 
         if (req.recyclerAddress != msg.sender) revert waste.ONLY_A_RECYCLER();
@@ -351,6 +385,10 @@ contract WasteManagement {
         req.isAccepted = true;
         //collection.isCompleted = false;  // Mark as in progress
         req.assignedCollector = _collectorAddress;
+
+        collector.numberOfWasteCollected++;
+
+        
 
         // Update collector availability
         // collector.isAvailable = false;
@@ -429,4 +467,67 @@ contract WasteManagement {
 
         emit CollectionRequestCanceled(_requestID);
     }
+
+
+     function getUserRole(address _userAddress) external view returns (
+    string memory role,
+    uint256 id,
+    address addr,
+    int32 latitude,
+    int32 longitude,
+    string memory location,
+    bool isRegistered
+    ) {
+    // Check if the address is a user
+    if (users[_userAddress].isRegistered) {
+        User storage user = users[_userAddress];
+        return (
+            "User",
+            user.id,
+            user.userAddress,
+            user.location.latitude,
+            user.location.longitude,
+            "",
+            user.isRegistered
+        );
+    }
+
+    // Check if the address is a recycler
+    if (recyclers[_userAddress].isRegistered) {
+        Recycler storage recycler = recyclers[_userAddress];
+        Coordinates storage coord = recyclerCordinate[_userAddress];
+        return (
+            "Recycler",
+            recycler.id,
+            recycler.recyclerAddress,
+            coord.latitude,
+            coord.longitude,
+            recycler.location,
+            recycler.isRegistered
+        );
+    }
+
+    // Check if the address is a collector
+    for (uint256 i = 0; i < recyclersAddresses.length; i++) {
+        address recyclerAddr = recyclersAddresses[i];
+        if (collectors[recyclerAddr][_userAddress].collectorAddress != address(0)) {
+            Collector storage collector = collectors[recyclerAddr][_userAddress];
+            return (
+                "Collector",
+                collector.id,
+                collector.collectorAddress,
+                0,
+                0,
+                "",
+                collector.isAvailable
+            );
+        }
+    }
+
+    // If no match is found, revert
+    revert waste.NOT_FOUND();
+}
+
+
+
 }
