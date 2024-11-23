@@ -32,6 +32,19 @@ describe("WasteManagement Contract", function () {
       expect(recyclerInfo.location).to.equal("City A");
     });
 
+    it("It should get all the recyclers", async function () {
+      const { wasteManagement, recycler } = await loadFixture(deployFixture);
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+
+      const recyclerInfo = await wasteManagement.recyclers(recycler.address);
+      const recycer = await wasteManagement.seeAllRecyclers();
+      // console.log(recycer);
+      expect(recycer.length).to.be.equal(1);
+      expect(recyclerInfo.isRegistered).to.be.true;
+      expect(recyclerInfo.location).to.equal("City A");
+    });
+
     it("Should not allow duplicate recycler registration", async function () {
       const { wasteManagement, recycler } = await loadFixture(deployFixture);
 
@@ -54,7 +67,7 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
 
-      const offer = await wasteManagement.recyclerOffer(recycler.address, 0);
+      const offer = await wasteManagement.recyclerOffers(recycler.address, 0);
       expect(offer.name).to.equal("Plastic");
       expect(offer.pricePerKg).to.equal(10);
       expect(offer.minQuantity).to.equal(5);
@@ -92,6 +105,8 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
       await wasteManagement.connect(user1).makeRequest(recycler.address, 0, 10, 100, 6, 5);
 
+      const userRequest = await wasteManagement.connect(user1).getAllUserRequest();
+      // console.log("All User Requests:", userRequest);
       const request = await wasteManagement.showRequest(1);
       expect(request.userAddress).to.equal(user1.address);
       expect(request.recyclerAddress).to.equal(recycler.address);
