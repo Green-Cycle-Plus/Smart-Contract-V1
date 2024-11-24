@@ -14,11 +14,11 @@ describe("EscrowContract", function () {
   }
 
   it("should create a new escrow with valid payment", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund the escrow
-    const tx = await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    const tx = await escrow.connect(payer).createEscrow(payee.address,otherAccount,0 , { value: amount });
     await tx.wait();
 
     // Verify the escrow details
@@ -32,21 +32,21 @@ describe("EscrowContract", function () {
   });
 
   it("should emit EscrowCreated event on escrow creation", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount} = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund the escrow and check for event
-    await expect(escrow.connect(payer).createEscrow(payee.address, { value: amount }))
+    await expect(escrow.connect(payer).createEscrow(payee.address, otherAccount, 0 ,{ value: amount }))
       .to.emit(escrow, "EscrowCreated")
-      .withArgs(1, payer.address, payee.address, amount);
+      .withArgs(1, payer.address, payee.address, amount, 0);
   });
 
   it("should allow payer or payee to release funds to payee", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address, otherAccount,0, { value: amount });
 
     // Release funds as the payer
     await expect(escrow.connect(payer).releaseEscrow(1))
@@ -63,7 +63,7 @@ describe("EscrowContract", function () {
     const amount = ethers.parseEther("1.0");
 
     // Fund the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address, otherAccount,0, { value: amount });
 
     // Attempt to release funds as an unauthorized user
     await expect(escrow.connect(otherAccount).releaseEscrow(1)).to.be.revertedWithCustomError(
@@ -73,11 +73,11 @@ describe("EscrowContract", function () {
   });
 
   it("should allow only the payer to refund escrow", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address, otherAccount,0, { value: amount });
 
     // Refund the escrow as the payer
     await expect(escrow.connect(payer).refundEscrow(1))
@@ -90,11 +90,11 @@ describe("EscrowContract", function () {
   });
 
   it("should prevent payee from refunding escrow", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address, otherAccount,0, { value: amount });
 
     // Attempt to refund as the payee
     await expect(escrow.connect(payee).refundEscrow(1)).to.be.revertedWithCustomError(
@@ -104,11 +104,11 @@ describe("EscrowContract", function () {
   });
 
   it("should prevent release of already released escrow", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund and release the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address,  otherAccount,0, { value: amount });
     await escrow.connect(payer).releaseEscrow(1);
 
     // Attempt to release again
@@ -119,11 +119,11 @@ describe("EscrowContract", function () {
   });
 
   it("should prevent refund of already released escrow", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund and release the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address, otherAccount,0, { value: amount });
     await escrow.connect(payer).releaseEscrow(1);
 
     // Attempt to refund
@@ -134,11 +134,11 @@ describe("EscrowContract", function () {
   });
 
   it("should prevent refund of already refunded escrow", async function () {
-    const { escrow, payer, payee } = await loadFixture(deployEscrowFixture);
+    const { escrow, payer, payee, otherAccount } = await loadFixture(deployEscrowFixture);
     const amount = ethers.parseEther("1.0");
 
     // Fund and refund the escrow
-    await escrow.connect(payer).createEscrow(payee.address, { value: amount });
+    await escrow.connect(payer).createEscrow(payee.address, otherAccount,0, { value: amount });
     await escrow.connect(payer).refundEscrow(1);
 
     // Attempt to refund again

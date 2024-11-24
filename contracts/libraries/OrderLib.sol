@@ -71,7 +71,9 @@ library OrderLib {
     ) internal {
         // Create a single escrow for this order
         uint256 escrowId = escrowContract.createEscrow{value: totalAmount}(
-            recycler
+            buyer,
+            recycler,
+            1
         );
         // uint256 escrowId = escrowContract.escrowCounter();
 

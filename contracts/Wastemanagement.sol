@@ -6,9 +6,11 @@ import {IEscrow} from "./IEscrow.sol";
 
 contract WasteManagement {
     IEscrow public escrowContract; // Address of the Escrow contract
+    address owner;
 
-    constructor(address _escrowContract) {
+    constructor(address _escrowContract, address _owner) {
         escrowContract = IEscrow(_escrowContract);
+        owner = _owner;
     }
 
     uint256 numberOfUsers;
@@ -39,6 +41,11 @@ contract WasteManagement {
     event NewUserJoined(address userAddress, int32 latitude, int32 longitude);
 
     mapping(address => User) public users;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Unauthorized");
+        _;
+    }
 
     /**
      * @notice Creates a new user.
@@ -96,6 +103,7 @@ contract WasteManagement {
         uint256 offerId;
         string name;
         address recyclerAddress;
+        uint256 recyclerId;
         uint256 pricePerKg;
         uint256 minQuantity;
     }
@@ -152,7 +160,7 @@ contract WasteManagement {
 
         numberOfRecyclers++;
 
-        recyclersById[numberOfRecyclers] = recycler;
+        recyclersById[_id] = recycler;
 
         emit RecyclerCreated(_recyclerAddress, _location, lat, lon);
     }
@@ -182,12 +190,21 @@ contract WasteManagement {
                 offerId: offerId + 1,
                 name: _wasteType,
                 recyclerAddress: msg.sender,
+                recyclerId: recyclers[msg.sender].id,
                 pricePerKg: _pricePerKg,
                 minQuantity: _miniQuantity
             })
         );
 
         emit OfferCreated(msg.sender, _wasteType, _pricePerKg, _miniQuantity);
+    }
+
+    function getRecyclerOffers(
+        uint256 _id //Company Id
+    ) external view returns (Offer[] memory) {
+        Recycler storage recycler = recyclersById[_id];
+        if (recycler.recyclerAddress == address(0)) revert waste.NOT_FOUND();
+        return recyclerOffers[recycler.recyclerAddress];
     }
 
     function viewOffer(
@@ -312,7 +329,7 @@ contract WasteManagement {
 
     //should be called by users
     function makeRequest(
-        address _recyclerAddress,
+        uint256 _recyclerId,
         uint256 _offerId,
         uint256 _weight,
         uint256 _price,
@@ -320,7 +337,7 @@ contract WasteManagement {
         int32 _longitude
     ) external {
         User memory user = users[msg.sender];
-        Recycler storage recycler = recyclers[_recyclerAddress];
+        Recycler storage recycler = recyclersById[_recyclerId];
 
         // Ensure user and recycler are registered
         if (!user.isRegistered) {
@@ -334,10 +351,10 @@ contract WasteManagement {
         if (_price < 0) revert waste.INVALIDAMOUNT();
 
         // Check if the recycler offers the specified waste type
-        if (recyclerOffers[_recyclerAddress][_offerId].offerId == 0)
+        if (recyclerOffers[recycler.recyclerAddress][_offerId].offerId == 0)
             revert waste.OFFERNOTFOUND();
 
-        Offer memory offer = recyclerOffers[_recyclerAddress][_offerId];
+        Offer memory offer = recyclerOffers[recycler.recyclerAddress][_offerId];
 
         if (_weight < offer.minQuantity) revert waste.LOWER_THAN_MINQUANTITY();
 
@@ -347,7 +364,7 @@ contract WasteManagement {
 
         req.id = _requestID;
         req.userAddress = msg.sender;
-        req.recyclerAddress = _recyclerAddress;
+        req.recyclerAddress = recycler.recyclerAddress;
         req.offerId = _offerId;
         req.weight = _weight;
         req.valuedAt = _price;
@@ -360,7 +377,7 @@ contract WasteManagement {
         emit RequestCreated(
             _requestID,
             msg.sender,
-            _recyclerAddress,
+            recycler.recyclerAddress,
             _offerId,
             _weight,
             _price
@@ -417,7 +434,9 @@ contract WasteManagement {
 
         // Create the escrow and then retrieve the current escrow ID from EscrowContract
         uint256 escrowId = escrowContract.createEscrow{value: req.valuedAt}(
-            req.recyclerAddress
+            req.userAddress,
+            req.recyclerAddress,
+            0
         );
 
         req.escrowRequestID = escrowId;
@@ -439,7 +458,7 @@ contract WasteManagement {
     }
 
     // should be called by the collector
-    function confirmRequest(uint256 _requestID) external {
+    function confirmRequest(uint256 _requestID) external payable {
         WasteCollectionRequest storage req = userWasteRequests[_requestID];
 
         // Ensure the request is accepted and not already completed
@@ -561,5 +580,33 @@ contract WasteManagement {
 
         // If no match is found, revert
         revert waste.NOT_FOUND();
+    }
+
+    event FundsWithdrawn(address indexed owner, uint256 amount);
+
+    function withdrawFunds() external onlyOwner {
+        uint256 contractBalance = address(this).balance;
+        if (contractBalance == 0) revert("No funds available for withdrawal");
+
+        payable(msg.sender).transfer(contractBalance);
+
+        emit FundsWithdrawn(msg.sender, contractBalance);
+    }
+
+    event LogFallback(address sender, uint value, bytes data);
+    event LogReceive(address sender, uint value);
+
+    /**
+     * @notice Fallback function to log unexpected calls.
+     */
+    fallback() external payable {
+        emit LogFallback(msg.sender, msg.value, msg.data);
+    }
+
+    /**
+     * @notice Receive function to log ether sent directly to the contract.
+     */
+    receive() external payable {
+        emit LogReceive(msg.sender, msg.value);
     }
 }

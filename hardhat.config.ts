@@ -6,7 +6,16 @@ import "@nomicfoundation/hardhat-toolbox";
 const ACCOUNT_PRIVATE_KEY = vars.get("ACCOUNT_PRIVATE_KEY");
 const LISK_RPC_URL = vars.get("LISK_RPC_URL");
 const config: HardhatUserConfig = {
-  solidity: "0.8.24",
+  solidity: {
+    version: "0.8.24",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200, // Try adjusting the number of runs
+      },
+      // viaIR: true, // Enable IR-based compilation
+    },
+  },
   networks: {
     // for testnet
     "lisk-sepolia": {
