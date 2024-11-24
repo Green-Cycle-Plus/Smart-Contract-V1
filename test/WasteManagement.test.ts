@@ -13,7 +13,7 @@ describe("WasteManagement Contract", function () {
 
     // Deploy WasteManagement contract
     const WasteManagement = await ethers.getContractFactory("WasteManagement");
-    const wasteManagement = await WasteManagement.deploy(escrow.getAddress(), owner.getAddress());
+    const wasteManagement = await WasteManagement.deploy(escrow.getAddress());
   
 
     return { wasteManagement, escrow, owner, user1, user2, recycler, collector, otherCollector };

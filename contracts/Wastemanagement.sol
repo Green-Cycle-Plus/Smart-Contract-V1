@@ -8,9 +8,9 @@ contract WasteManagement {
     IEscrow public escrowContract; // Address of the Escrow contract
     address owner;
 
-    constructor(address _escrowContract, address _owner) {
+    constructor(address _escrowContract) {
         escrowContract = IEscrow(_escrowContract);
-        owner = _owner;
+        owner = msg.sender;
     }
 
     uint256 numberOfUsers;

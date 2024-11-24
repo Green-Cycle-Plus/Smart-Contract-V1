@@ -20,6 +20,8 @@ contract EscrowContract {
 
     // state variables
     mapping(uint256 => EscrowLibrary.Escrow) public escrows;
+    mapping(address => bool) public trustedContracts;
+
     uint256 public escrowCounter;
 
     // events
