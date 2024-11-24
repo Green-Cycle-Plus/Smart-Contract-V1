@@ -32,4 +32,5 @@ library waste {
     error AMOUNT_LESS_THAN_AMOUNT_VALUED();
     error ALREADY_ACCEPTED();
     error NOT_FOUND();
+    error COLLECTORALREADYADDED();
 }
