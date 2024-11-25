@@ -119,6 +119,7 @@ contract WasteManagement {
 
     event RecyclerCreated(
         address indexed _recyclerAddress,
+        uint256 indexed _recyclerId,
         string _location,
         int32 lat,
         int32 lon
@@ -136,7 +137,7 @@ contract WasteManagement {
         string memory _location,
         int32 lat,
         int32 lon
-    ) external {
+    ) external returns (uint256, address, string memory, bool) {
         if (recyclers[_recyclerAddress].isRegistered == true)
             revert waste.RECYCLER_ALREADY_REGISTERED();
 
@@ -162,7 +163,8 @@ contract WasteManagement {
 
         recyclersById[_id] = recycler;
 
-        emit RecyclerCreated(_recyclerAddress, _location, lat, lon);
+        emit RecyclerCreated(_recyclerAddress, _id, _location, lat, lon);
+        return (_id, _recyclerAddress, _location, true);
     }
 
     function getRecyclerById(
@@ -324,6 +326,7 @@ contract WasteManagement {
     mapping(uint256 => WasteCollectionRequest) public userWasteRequests;
     mapping(address => WasteCollectionRequest[]) public allUserRequest; //Users array of Users Request IDs.
     mapping(address => uint256[]) public collectorsRequests;
+    mapping(uint256 => WasteCollectionRequest[]) public recyclerRequests;
 
     event RequestCancelled(uint _requestId);
 
@@ -372,6 +375,8 @@ contract WasteManagement {
 
         allUserRequest[msg.sender].push(req);
 
+        recyclerRequests[_recyclerId].push(req);
+
         numOfRequest++;
 
         emit RequestCreated(
@@ -382,6 +387,12 @@ contract WasteManagement {
             _weight,
             _price
         );
+    }
+
+    function getRecyclerRequests(
+        uint256 _recyclerId
+    ) external view returns (WasteCollectionRequest[] memory) {
+        return recyclerRequests[_recyclerId];
     }
 
     function getAllUserRequest()

@@ -177,6 +177,7 @@ describe("WasteManagement Contract", function () {
       ).to.be.revertedWithCustomError(wasteManagement, "AMOUNT_LESS_THAN_AMOUNT_VALUED");
   });
 
+
     it("Should allow the collector to confirm the request", async function () {
       const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
 
@@ -190,6 +191,18 @@ describe("WasteManagement Contract", function () {
 
       expect(request.isCompleted).to.be.true;
     });
+
+
+    it("Should get recycler requests", async function () {
+      const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+
+      await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+      await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
+      const tx2 = await wasteManagement.getRecyclerRequests(1);
+      expect(tx2.length).equal(2)
+  });
 
     it("Should revert if a non-assigned collector tries to confirm the request", async function () {
       const { wasteManagement, user1, recycler, collector, otherCollector } = await loadFixture(
