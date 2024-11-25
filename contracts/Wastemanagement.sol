@@ -39,6 +39,13 @@ contract WasteManagement {
     event RequestConfirmed(uint256 requestID, address collectorAddress);
     event CollectionRequestCanceled(uint requestID);
     event NewUserJoined(address userAddress, int32 latitude, int32 longitude);
+    event LocationSet(address _user, int32 _latitude, int32 _longitude);
+    event collectorCreated(
+        uint256 indexed collectorId,
+        address indexed _collectorAddress,
+        string _name,
+        string _contact
+    );
 
     mapping(address => User) public users;
 
@@ -77,6 +84,7 @@ contract WasteManagement {
         if (!users[_user].isRegistered) revert waste.NOT_REGISTERED();
 
         users[_user].location = Coordinates(_latitude, _longitude);
+        emit LocationSet(_user, _latitude, _longitude);
     }
 
     // function getUser(address _userAddress) external view returns ( uint256 id,address userAddress,  string memory location, bool isRegistered ){
@@ -287,6 +295,7 @@ contract WasteManagement {
         // Add collector to recycler's collectors list
         recyclerCollectors[msg.sender].push(collector);
         numOfCollector++;
+        emit collectorCreated(_id, _collectorAddress, _name, _contact);
     }
 
     // New function to get all collectors for a specific recycler
