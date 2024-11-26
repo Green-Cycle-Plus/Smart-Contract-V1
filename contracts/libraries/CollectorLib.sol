@@ -7,13 +7,6 @@ import "./GreenCycle.sol";
 library CollectorLib {
     using GreenCycle for GreenCycle.GreenCycleStorage;
 
-    event collectorCreated(
-        uint256 indexed collectorId,
-        address indexed _collectorAddress,
-        string _name,
-        string _contact
-    );
-
     function getCollector(
         address _address
     ) external view returns (GreenCycle.Collector memory) {
@@ -28,7 +21,7 @@ library CollectorLib {
         address _collectorAddress,
         string memory _name,
         string memory _contact
-    ) external {
+    ) external returns (uint256) {
         //should be set by recyclers/
         GreenCycle.GreenCycleStorage storage gs = GreenCycle
             .greenCycleStorage();
@@ -53,7 +46,7 @@ library CollectorLib {
 
         // Add collector to recycler's collectors list
         gs.recyclerCollectors[msg.sender].push(collector);
-        emit collectorCreated(_id, _collectorAddress, _name, _contact);
+        return _id;
     }
 
     function getRecyclerCollectors(

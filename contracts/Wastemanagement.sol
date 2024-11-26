@@ -10,19 +10,36 @@ import "./libraries/CollectorLib.sol";
 import "./libraries/RequestLib.sol";
 
 contract WasteManagement {
-    // using UserLib for UserLib.UserStorage;
-    // using RecyclerLib for RecyclerLib.RecyclerStorage;
-    // using CollectorLib for CollectorLib.CollectorStorage;
-    // using RequestLib for RequestLib.RequestStorage;
-    // using GreenCycle for GreenCycle.GreenCycleStorage;
-
-    // UserLib.UserStorage userAction;
-    // RecyclerLib.RecyclerStorage recyclerAction;
-    // CollectorLib.CollectorStorage collectorAction;
-    // RequestLib.RequestStorage requestAction;
-
     IEscrow public escrowContract; // Address of the Escrow contract
     address owner;
+
+    event UserCreated(address indexed userAddress, bool isRegistered);
+    event LocationSet(address _user, int32 _latitude, int32 _longitude);
+    event OfferCreated(
+        address indexed recycler,
+        string _wasteType,
+        uint256 _pricePerKg,
+        uint256 _miniQuantity
+    );
+
+    event collectorCreated(
+        uint256 indexed collectorId,
+        address indexed _collectorAddress,
+        string _name,
+        string _contact
+    );
+
+    event RequestCreated(
+        uint256 requestID,
+        address userAddress,
+        uint256 offerId,
+        uint256 weight,
+        uint256 priceAgreed
+    );
+
+    event RequestConfirmed(uint256 requestID, address collectorAddress);
+    event RequestCancelled(uint _requestId);
+    event RequestAccepted(uint256 requestID, address collectorAddress);
 
     constructor(address _escrowContract) {
         escrowContract = IEscrow(_escrowContract);
@@ -41,6 +58,7 @@ contract WasteManagement {
      */
     function _createUser(address _user) internal {
         UserLib.createUser(_user);
+        emit UserCreated(_user, true);
     }
 
     /**
@@ -56,6 +74,7 @@ contract WasteManagement {
         int32 _longitude
     ) internal {
         UserLib.setUserLocation(_user, _latitude, _longitude);
+        emit LocationSet(_user, _latitude, _longitude);
     }
 
     function getUser(
@@ -112,6 +131,7 @@ contract WasteManagement {
         uint256 _miniQuantity
     ) external {
         RecyclerLib.createOffer(_wasteType, _pricePerKg, _miniQuantity);
+        emit OfferCreated(msg.sender, _wasteType, _pricePerKg, _miniQuantity);
     }
 
     function getRecyclerOffers(
@@ -150,7 +170,12 @@ contract WasteManagement {
         string memory _contact
     ) external {
         //should be set by recyclers/
-        return CollectorLib.createCollector(_collectorAddress, _name, _contact);
+        uint256 _id = CollectorLib.createCollector(
+            _collectorAddress,
+            _name,
+            _contact
+        );
+        emit collectorCreated(_id, _collectorAddress, _name, _contact);
     }
 
     function getCollector(
@@ -185,6 +210,8 @@ contract WasteManagement {
             _latitude,
             _longitude
         );
+
+        emit RequestCreated(_recyclerId, msg.sender, _offerId, _weight, _price);
     }
 
     function getRecyclerRequests(
@@ -226,6 +253,8 @@ contract WasteManagement {
             msg.value,
             escrowContract
         );
+        // Emit an event to indicate request acceptance
+        emit RequestAccepted(_requestID, _collectorAddress);
     }
 
     function getAllCollectorRequests()
@@ -239,6 +268,7 @@ contract WasteManagement {
     // should be called by the collector
     function confirmRequest(uint256 _requestID) external payable {
         RequestLib.confirmRequest(_requestID, escrowContract);
+        emit RequestConfirmed(_requestID, msg.sender);
     }
 
     function userCancelRequest(uint256 _requestID) external {
@@ -247,6 +277,7 @@ contract WasteManagement {
 
     function cancelRequestAndRefund(uint256 _requestID) external {
         RequestLib.cancelRequestAndRefund(_requestID, escrowContract);
+        emit RequestCancelled(_requestID);
     }
 
     function getUserRole(

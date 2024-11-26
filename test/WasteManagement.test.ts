@@ -121,6 +121,12 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
 
+      const tx = await wasteManagement.connect(recycler).getRecyclerOffers(1);
+      console.log(tx)
+
+      const tx2 = await wasteManagement.connect(recycler).viewOffer(recycler.getAddress(), 0);
+      console.log(tx2)
+
       await wasteManagement
         .connect(recycler)
         .updateOffer(0, "Updated Plastic", recycler.address, 15, 3);

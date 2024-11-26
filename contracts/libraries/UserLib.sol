@@ -7,8 +7,7 @@ import "./GreenCycle.sol";
 library UserLib {
     using GreenCycle for GreenCycle.GreenCycleStorage;
 
-    event UserCreated(address indexed userAddress, bool isRegistered);
-    event LocationSet(address _user, int32 _latitude, int32 _longitude);
+   
 
     /**
      * @notice Creates a new user.
@@ -23,7 +22,6 @@ library UserLib {
         user.id = ++gs.numberOfUsers; // Increment and assign ID
         user.userAddress = _user;
         user.isRegistered = true;
-        emit UserCreated(_user, true);
         return (_user, true);
     }
 
@@ -47,7 +45,6 @@ library UserLib {
             _latitude,
             _longitude
         );
-        emit LocationSet(_user, _latitude, _longitude);
     }
 
     function getUser(

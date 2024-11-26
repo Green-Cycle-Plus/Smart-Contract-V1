@@ -15,13 +15,6 @@ library RecyclerLib {
         int32 lon
     );
 
-    event OfferCreated(
-        address indexed recycler,
-        string _wasteType,
-        uint256 _pricePerKg,
-        uint256 _miniQuantity
-    );
-
     function createRecycler(
         address _recyclerAddress,
         string memory _location,
@@ -101,7 +94,7 @@ library RecyclerLib {
             })
         );
 
-        emit OfferCreated(msg.sender, _wasteType, _pricePerKg, _miniQuantity);
+        
     }
 
     function getRecyclerOffers(
@@ -142,8 +135,7 @@ library RecyclerLib {
         if (!gs.recyclers[msg.sender].isRegistered)
             revert waste.INVALIDRECYCLER();
 
-        if (gs.recyclerOffers[msg.sender][_offerId].offerId == 0)
-            revert waste.OFFERNOTFOUND();
+        
 
         GreenCycle.Offer storage offer = gs.recyclerOffers[msg.sender][
             _offerId

@@ -9,19 +9,9 @@ import "../interfaces/IEscrow.sol";
 library RequestLib {
     using GreenCycle for GreenCycle.GreenCycleStorage;
 
-    event RequestCancelled(uint _requestId);
-    event RequestAccepted(uint256 requestID, address collectorAddress);
-    event RequestConfirmed(uint256 requestID, address collectorAddress);
     event CollectionRequestCanceled(uint requestID);
     event NewUserJoined(address userAddress, int32 latitude, int32 longitude);
-    event RequestCreated(
-        uint256 requestID,
-        address userAddress,
-        address recyclerAddress,
-        uint256 offerId,
-        uint256 weight,
-        uint256 priceAgreed
-    );
+    
 
     //should be called by users
     function makeRequest(
@@ -53,7 +43,7 @@ library RequestLib {
         ][_offerId];
 
         // Check if the recycler offers the specified waste type
-        if (offer.offerId == 0) revert waste.OFFERNOTFOUND();
+        // if (offer.offerId == 0) revert waste.OFFERNOTFOUND();
 
         if (_weight < offer.minQuantity) revert waste.LOWER_THAN_MINQUANTITY();
 
@@ -80,14 +70,6 @@ library RequestLib {
 
         gs.recyclerRequests[_recyclerId].push(req);
 
-        emit RequestCreated(
-            _requestID,
-            msg.sender,
-            recycler.recyclerAddress,
-            _offerId,
-            _weight,
-            _price
-        );
     }
 
     function acceptRequest(
@@ -144,8 +126,7 @@ library RequestLib {
 
         gs.collectorsRequests[_collectorAddress].push(_requestID);
 
-        // Emit an event to indicate request acceptance
-        emit RequestAccepted(_requestID, _collectorAddress);
+
     }
 
     function getAllCollectorRequests()
@@ -198,8 +179,7 @@ library RequestLib {
         // Collector storage collector = collectors[msg.sender][req.assignedCollector];
         // collector.isAvailable = true;
 
-        // Emit an event indicating the completion of the request
-        emit RequestConfirmed(_requestID, msg.sender);
+ 
     }
 
     function userCancelRequest(uint256 _requestID) external {
@@ -222,7 +202,6 @@ library RequestLib {
 
         req.status = GreenCycle.RequestStatus.CANCELLED;
 
-        emit RequestCancelled(_requestID);
     }
 
     function cancelRequestAndRefund(
