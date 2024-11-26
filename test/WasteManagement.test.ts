@@ -165,7 +165,8 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
       const request = await wasteManagement.showRequest(1);
-
+      console.log(request.status);
+      expect(request.status).to.be.equal(1);
       expect(request.isAccepted).to.be.true;
       expect(request.assignedCollector).to.equal(collector.address);
     });
@@ -219,7 +220,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.connect(collector).confirmRequest(1);
       const request = await wasteManagement.showRequest(1);
-
+      expect(request.status).to.be.equal(2)
       expect(request.isCompleted).to.be.true;
     });
 

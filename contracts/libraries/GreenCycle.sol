@@ -21,6 +21,9 @@ library GreenCycle {
         uint256 rating;
         bool isRegistered;
         //bool isActive;
+        uint256 totalWasteRequest;
+        uint256 totalAmountSpent;
+        uint256 totalWasteCollectedInKgs;
     }
 
     struct Offer {
@@ -72,9 +75,6 @@ library GreenCycle {
         address recyclerAddress;
         address assignedCollector; // Collector who accepted the request
         bool isAccepted; // to track if the request is accepted
-        uint256 totalWasteRequest;
-        uint256 totalAmountSpent;
-        uint256 totalWasteCollectedInKgs;
     }
 
     struct GreenCycleStorage {

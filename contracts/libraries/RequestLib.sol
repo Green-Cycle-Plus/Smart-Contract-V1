@@ -11,7 +11,6 @@ library RequestLib {
 
     event CollectionRequestCanceled(uint requestID);
     event NewUserJoined(address userAddress, int32 latitude, int32 longitude);
-    
 
     //should be called by users
     function makeRequest(
@@ -69,7 +68,6 @@ library RequestLib {
         gs.allUserRequest[msg.sender].push(req);
 
         gs.recyclerRequests[_recyclerId].push(req);
-
     }
 
     function acceptRequest(
@@ -107,10 +105,13 @@ library RequestLib {
         //collection.isCompleted = false;  // Mark as in progress
         req.assignedCollector = _collectorAddress;
 
-        req.totalWasteRequest += 1;
         req.status = GreenCycle.RequestStatus.ACCEPTED;
 
         ++collector.numberOfWasteCollected;
+
+        GreenCycle.Recycler storage recyler = gs.recyclers[req.recyclerAddress];
+
+        ++recyler.totalWasteRequest;
 
         // Update collector availability
         // collector.isAvailable = false;
@@ -125,8 +126,6 @@ library RequestLib {
         req.escrowRequestID = escrowId;
 
         gs.collectorsRequests[_collectorAddress].push(_requestID);
-
-
     }
 
     function getAllCollectorRequests()
@@ -163,8 +162,6 @@ library RequestLib {
         // Mark the request as completed
         req.isCompleted = true;
         req.status = GreenCycle.RequestStatus.COMPLETED;
-        req.totalAmountSpent += req.valuedAt;
-        req.totalWasteCollectedInKgs += req.weight;
 
         //Update User Reward
         uint256 platformShare = (req.valuedAt * 10) / 100;
@@ -173,13 +170,16 @@ library RequestLib {
         GreenCycle.User storage user = gs.users[req.userAddress];
         user.totalReward += userShare;
 
+        GreenCycle.Recycler storage recyler = gs.recyclers[req.recyclerAddress];
+
+        recyler.totalWasteCollectedInKgs += req.weight;
+        recyler.totalAmountSpent += req.valuedAt;
+
         escrowContract.releaseEscrow(req.escrowRequestID);
 
         // Set the collector's availability back to true
         // Collector storage collector = collectors[msg.sender][req.assignedCollector];
         // collector.isAvailable = true;
-
- 
     }
 
     function userCancelRequest(uint256 _requestID) external {
@@ -201,7 +201,6 @@ library RequestLib {
         }
 
         req.status = GreenCycle.RequestStatus.CANCELLED;
-
     }
 
     function cancelRequestAndRefund(
@@ -223,13 +222,13 @@ library RequestLib {
             msg.sender != req.assignedCollector
         ) revert waste.NOT_AUTHORIZED();
 
-        // Trigger the refundEscrow function in the Escrow contract
-        escrowContract.refundEscrow(req.escrowRequestID);
-
         // Mark the request as canceled to prevent future actions on it
         req.isCompleted = true;
 
         req.status = GreenCycle.RequestStatus.CANCELLED;
+
+        // Trigger the refundEscrow function in the Escrow contract
+        escrowContract.refundEscrow(req.escrowRequestID);
 
         emit CollectionRequestCanceled(_requestID);
     }
