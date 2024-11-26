@@ -8,13 +8,13 @@ const LISK_RPC_URL = vars.get("LISK_RPC_URL");
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.24",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200, // Try adjusting the number of runs
-      },
-      // viaIR: true, // Enable IR-based compilation
-    },
+    // settings: {
+    //   optimizer: {
+    //     enabled: true,
+    //     runs: 200, // Try adjusting the number of runs
+    //   },
+    //   viaIR: true, // Enable IR-based compilation
+    // },
   },
   networks: {
     // for testnet
