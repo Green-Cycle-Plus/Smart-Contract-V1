@@ -270,7 +270,8 @@ contract WasteManagement {
     function getAllUserRequests(
         address _addr
     ) external view returns (GreenCycle.WasteCollectionRequest[] memory) {
-        GreenCycle.GreenCycleStorage storage gs = GreenCycle.greenCycleStorage();
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
         return gs.allUserRequest[_addr];
     }
 

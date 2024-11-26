@@ -89,9 +89,10 @@ library RecyclerLib {
         if (_pricePerKg <= 0) revert waste.INVALIDPRICE();
         if (_miniQuantity == 0) revert waste.INVALIDQUANTITY();
         uint256 offerId = gs.recyclerOffers[msg.sender].length;
+
         gs.recyclerOffers[msg.sender].push(
             GreenCycle.Offer({
-                offerId: offerId + 1,
+                offerId: offerId,
                 name: _wasteType,
                 recyclerAddress: msg.sender,
                 recyclerId: gs.recyclers[msg.sender].id,
@@ -113,6 +114,7 @@ library RecyclerLib {
         return gs.recyclerOffers[recycler.recyclerAddress];
     }
 
+    //Get the Offer
     function viewOffer(
         address _recyclerAddress,
         uint256 _offerId
@@ -122,8 +124,8 @@ library RecyclerLib {
         if (!gs.recyclers[_recyclerAddress].isRegistered)
             revert waste.INVALIDRECYCLER();
 
-        if (gs.recyclerOffers[_recyclerAddress][_offerId].offerId == 0)
-            revert waste.OFFERNOTFOUND();
+        // if (gs.recyclerOffers[_recyclerAddress][_offerId].offerId == 0)
+        //     revert waste.OFFERNOTFOUND();
 
         return gs.recyclerOffers[_recyclerAddress][_offerId];
     }
