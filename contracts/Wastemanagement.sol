@@ -200,7 +200,8 @@ contract WasteManagement {
         uint32 _weight,
         uint256 _price,
         int32 _latitude,
-        int32 _longitude
+        int32 _longitude,
+        string memory _location
     ) external {
         RequestLib.makeRequest(
             _recyclerId,
@@ -208,7 +209,8 @@ contract WasteManagement {
             _weight,
             _price,
             _latitude,
-            _longitude
+            _longitude,
+            _location
         );
 
         emit RequestCreated(_recyclerId, msg.sender, _offerId, _weight, _price);

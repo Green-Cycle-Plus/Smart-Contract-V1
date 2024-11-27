@@ -75,6 +75,7 @@ library GreenCycle {
         address recyclerAddress;
         address assignedCollector; // Collector who accepted the request
         bool isAccepted; // to track if the request is accepted
+        string location;
     }
 
     struct GreenCycleStorage {
