@@ -19,7 +19,8 @@ library RequestLib {
         uint32 _weight,
         uint256 _price,
         int32 _latitude,
-        int32 _longitude
+        int32 _longitude,
+        string memory _location
     ) external {
         GreenCycle.GreenCycleStorage storage gs = GreenCycle
             .greenCycleStorage();
@@ -64,6 +65,7 @@ library RequestLib {
         req.wasteType = offer.name;
         req.longitude = _longitude;
         req.latitude = _latitude;
+        req.location = _location;
 
         gs.allUserRequest[msg.sender].push(req);
 
@@ -110,8 +112,10 @@ library RequestLib {
         ++collector.numberOfWasteCollected;
 
         GreenCycle.Recycler storage recyler = gs.recyclers[req.recyclerAddress];
+        GreenCycle.Recycler storage recylerByIdd = gs.recyclersById[recyler.id];
 
         ++recyler.totalWasteRequest;
+        ++recylerByIdd.totalWasteRequest;
 
         // Update collector availability
         // collector.isAvailable = false;
@@ -124,6 +128,25 @@ library RequestLib {
         );
 
         req.escrowRequestID = escrowId;
+
+        GreenCycle.WasteCollectionRequest[] storage allUserReq = gs
+            .allUserRequest[req.userAddress];
+        GreenCycle.WasteCollectionRequest[] storage recyReq = gs
+            .recyclerRequests[recyler.id];
+
+        for (uint256 i = 0; i < allUserReq.length; i++) {
+            if (allUserReq[i].id == _requestID) {
+                allUserReq[i].status = GreenCycle.RequestStatus.ACCEPTED;
+                break;
+            }
+        }
+
+        for (uint256 k = 0; k < recyReq.length; k++) {
+            if (recyReq[k].id == _requestID) {
+                recyReq[k].status = GreenCycle.RequestStatus.ACCEPTED;
+                break;
+            }
+        }
 
         gs.collectorsRequests[_collectorAddress].push(_requestID);
     }
@@ -172,10 +195,34 @@ library RequestLib {
 
         GreenCycle.Recycler storage recyler = gs.recyclers[req.recyclerAddress];
 
+        GreenCycle.Recycler storage recylerByIdd = gs.recyclersById[recyler.id];
+
         recyler.totalWasteCollectedInKgs += req.weight;
         recyler.totalAmountSpent += req.valuedAt;
 
+        recylerByIdd.totalWasteCollectedInKgs += req.weight;
+        recylerByIdd.totalAmountSpent += req.valuedAt;
+
         escrowContract.releaseEscrow(req.escrowRequestID);
+
+        GreenCycle.WasteCollectionRequest[] storage allUserReq = gs
+            .allUserRequest[req.userAddress];
+        GreenCycle.WasteCollectionRequest[] storage recyReq = gs
+            .recyclerRequests[recyler.id];
+
+        for (uint256 i = 0; i < allUserReq.length; i++) {
+            if (allUserReq[i].id == _requestID) {
+                allUserReq[i].status = GreenCycle.RequestStatus.COMPLETED;
+                break;
+            }
+        }
+
+        for (uint256 k = 0; k < recyReq.length; k++) {
+            if (recyReq[k].id == _requestID) {
+                recyReq[k].status = GreenCycle.RequestStatus.COMPLETED;
+                break;
+            }
+        }
 
         // Set the collector's availability back to true
         // Collector storage collector = collectors[msg.sender][req.assignedCollector];
@@ -199,8 +246,27 @@ library RequestLib {
             // escrowContract.refundEscrow(req.escrowRequestID);
             revert waste.ALREADY_ACCEPTED();
         }
-
         req.status = GreenCycle.RequestStatus.CANCELLED;
+        GreenCycle.Recycler storage recyler = gs.recyclers[req.recyclerAddress];
+
+        GreenCycle.WasteCollectionRequest[] storage allUserReq = gs
+            .allUserRequest[req.userAddress];
+        GreenCycle.WasteCollectionRequest[] storage recyReq = gs
+            .recyclerRequests[recyler.id];
+
+        for (uint256 i = 0; i < allUserReq.length; i++) {
+            if (allUserReq[i].id == _requestID) {
+                allUserReq[i].status = GreenCycle.RequestStatus.CANCELLED;
+                break;
+            }
+        }
+
+        for (uint256 k = 0; k < recyReq.length; k++) {
+            if (recyReq[k].id == _requestID) {
+                recyReq[k].status = GreenCycle.RequestStatus.CANCELLED;
+                break;
+            }
+        }
     }
 
     function cancelRequestAndRefund(
@@ -229,6 +295,26 @@ library RequestLib {
 
         // Trigger the refundEscrow function in the Escrow contract
         escrowContract.refundEscrow(req.escrowRequestID);
+        GreenCycle.Recycler storage recyler = gs.recyclers[req.recyclerAddress];
+
+        GreenCycle.WasteCollectionRequest[] storage allUserReq = gs
+            .allUserRequest[req.userAddress];
+        GreenCycle.WasteCollectionRequest[] storage recyReq = gs
+            .recyclerRequests[recyler.id];
+
+        for (uint256 i = 0; i < allUserReq.length; i++) {
+            if (allUserReq[i].id == _requestID) {
+                allUserReq[i].status = GreenCycle.RequestStatus.CANCELLED;
+                break;
+            }
+        }
+
+        for (uint256 k = 0; k < recyReq.length; k++) {
+            if (recyReq[k].id == _requestID) {
+                recyReq[k].status = GreenCycle.RequestStatus.CANCELLED;
+                break;
+            }
+        }
 
         emit CollectionRequestCanceled(_requestID);
     }

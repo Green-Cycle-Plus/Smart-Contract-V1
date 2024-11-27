@@ -145,7 +145,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).makeRequest(1, 0, 10, 100, 6, 5);
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, 100, 6, 5, "City Location");
 
       const userRequest = await wasteManagement.connect(user1).getAllUserRequest();
       // console.log("All User Requests:", userRequest);
@@ -161,12 +161,18 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");
 
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
       const request = await wasteManagement.showRequest(1);
+      const tx2 = await wasteManagement.connect(user1).getAllUserRequest();
+      console.log("Accept Status: ",tx2[0].status);
+      const tx3 = await wasteManagement.getRecyclerRequests(1);
+      console.log("Recycler Accept Status: ",tx3[0].status);
       console.log(request.status);
       expect(request.status).to.be.equal(1);
+      expect(tx2[0].status).to.be.equal(1);
+      expect(tx3[0].status).to.be.equal(1);
       expect(request.isAccepted).to.be.true;
       expect(request.assignedCollector).to.equal(collector.address);
     });
@@ -178,7 +184,7 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
       
       await expect(
-          wasteManagement.connect(user1).makeRequest(1, 0, 3, ethers.parseEther("1"), 6, 5)
+          wasteManagement.connect(user1).makeRequest(1, 0, 3, ethers.parseEther("1"), 6, 5, "City Location")
       ).to.be.revertedWithCustomError(wasteErr, "LOWER_THAN_MINQUANTITY");
   });
 
@@ -198,7 +204,8 @@ describe("WasteManagement Contract", function () {
           10, // Weight
           ethers.parseEther("1"), // Valued at 1 Ether
           6,
-          5
+          5,
+          "City Location"
       );
   
       // Try to accept the request with insufficient deposit
@@ -215,12 +222,22 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
 
       await wasteManagement.connect(collector).confirmRequest(1);
       const request = await wasteManagement.showRequest(1);
+
+
+      const tx2 = await wasteManagement.connect(user1).getAllUserRequest();
+      console.log("Accept Status: ",tx2[0].status);
+      const tx3 = await wasteManagement.getRecyclerRequests(1);
+      console.log("Recycler Accept Status: ",tx3[0].status);
+      console.log(request.status);
+
       expect(request.status).to.be.equal(2)
+      expect(tx2[0].status).to.be.equal(2)
+      expect(tx3[0].status).to.be.equal(2)
       expect(request.isCompleted).to.be.true;
     });
 
@@ -230,8 +247,8 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
-      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");      
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");      
       const tx2 = await wasteManagement.getRecyclerRequests(1);
       expect(tx2.length).equal(2)
   });
@@ -242,8 +259,8 @@ describe("WasteManagement Contract", function () {
 
     await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-    await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
-    await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
+    await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");      
+    await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");      
     const tx2 = await wasteManagement.getAllUserRequests(user1);
     // console.log(tx2);
     
@@ -260,7 +277,7 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
       await wasteManagement
           .connect(user1)
-          .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);
+          .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");
 
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
           value: ethers.parseEther("1"),
@@ -279,11 +296,18 @@ describe("WasteManagement Contract", function () {
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
     await wasteManagement
         .connect(user1)
-        .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);
+        .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");
 
     await wasteManagement.connect(user1).userCancelRequest(1);
 
     const request = await wasteManagement.showRequest(1);
+
+    const tx2 = await wasteManagement.connect(user1).getAllUserRequest();
+    
+    const tx3 = await wasteManagement.getRecyclerRequests(1);
+    
+    expect(tx3[0].status).to.be.equal(3);
+    expect(tx2[0].status).to.be.equal(3);
     expect(request.status).to.be.equal(3);
 });
 
@@ -294,7 +318,7 @@ it("Should revert if a user tries to cancel an accepted request", async function
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
     await wasteManagement
         .connect(user1)
-        .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5) ;
+        .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location") ;
 
     await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
         value: ethers.parseEther("1"),
@@ -313,11 +337,15 @@ it("Should revert if a user tries to cancel a completed request", async function
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
     await wasteManagement
         .connect(user1)
-        .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);
+        .makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5, "City Location");
 
     await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
         value: ethers.parseEther("1"),
     });
+
+    const tx2 = await wasteManagement.connect(user1).getAllUserRequest();
+    console.log(tx2[0].status);
+    
 
     await wasteManagement.connect(collector).confirmRequest(1);
 
