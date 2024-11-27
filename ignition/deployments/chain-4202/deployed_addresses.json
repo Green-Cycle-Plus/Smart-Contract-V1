@@ -1,0 +1,7 @@
+{
+  "WasteManagementModule#CollectorLib": "0x2eF240c68d259F165AF66dd68eA92158ef81C920",
+  "WasteManagementModule#RecyclerLib": "0xDf247281f039e9A34B4c0f84B9A8Ba5FD7938c5F",
+  "WasteManagementModule#RequestLib": "0x7b91605450Bb8C4fa0359178B3Fc04E312b18612",
+  "WasteManagementModule#UserLib": "0xFC186eaa6CA99a17015F6F0d4ad77c1fcbF78e9e",
+  "WasteManagementModule#WasteManagement": "0x27Be5b98A8e012CA3602b92D51DE7121d121D2B2"
+}

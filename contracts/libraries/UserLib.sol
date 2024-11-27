@@ -2,52 +2,26 @@
 pragma solidity ^0.8.24;
 
 import {waste} from "./Wastelibrary.sol";
-import "./RecyclerLib.sol";
-import "./CollectorLib.sol";
+import "./GreenCycle.sol";
 
 library UserLib {
-    using RecyclerLib for RecyclerLib.RecyclerStorage;
-    using CollectorLib for CollectorLib.CollectorStorage;
+    using GreenCycle for GreenCycle.GreenCycleStorage;
 
-    struct Coordinates {
-        int32 latitude;
-        int32 longitude;
-    }
-
-    struct User {
-        uint256 id;
-        address userAddress;
-        Coordinates location;
-        bool isRegistered;
-    }
-
-    struct UserStorage {
-        mapping(address => User) users;
-        uint256 numberOfUsers;
-        RecyclerLib.RecyclerStorage recyclerAction;
-        CollectorLib.CollectorStorage collectorAction;
-    }
-
-    event UserCreated(address indexed userAddress, bool isRegistered);
-    event LocationSet(address _user, int32 _latitude, int32 _longitude);
+   
 
     /**
      * @notice Creates a new user.
      * @dev accessible only to an unregistered user.
      * @dev callable internally by functions when uploading/creating waste pickup requests
      */
-    function createUser(
-        UserStorage storage self,
-        address _user
-    ) internal returns (address, bool) {
-        User storage user = self.users[_user];
-
+    function createUser(address _user) internal returns (address, bool) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        GreenCycle.User storage user = gs.users[_user];
         if (user.isRegistered) revert waste.REGISTERED();
-
-        user.id = ++self.numberOfUsers; // Increment and assign ID
+        user.id = ++gs.numberOfUsers; // Increment and assign ID
         user.userAddress = _user;
         user.isRegistered = true;
-        emit UserCreated(_user, true);
         return (_user, true);
     }
 
@@ -59,27 +33,30 @@ library UserLib {
      * @dev callable internally by functions when uploading/creating waste pickup requests
      */
     function setUserLocation(
-        UserStorage storage self,
         address _user,
         int32 _latitude,
         int32 _longitude
     ) internal {
-        if (!self.users[_user].isRegistered) revert waste.NOT_REGISTERED();
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        if (!gs.users[_user].isRegistered) revert waste.NOT_REGISTERED();
 
-        self.users[_user].location = Coordinates(_latitude, _longitude);
-        emit LocationSet(_user, _latitude, _longitude);
+        gs.users[_user].location = GreenCycle.Coordinates(
+            _latitude,
+            _longitude
+        );
     }
 
     function getUser(
-        UserStorage storage self,
         address _userAddress
-    ) external view returns (User memory) {
-        User storage user = self.users[_userAddress];
+    ) external view returns (GreenCycle.User memory) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        GreenCycle.User storage user = gs.users[_userAddress];
         return user;
     }
 
     function getUserRole(
-        UserStorage storage self,
         address _userAddress
     )
         external
@@ -94,9 +71,11 @@ library UserLib {
             bool isRegistered
         )
     {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
         // Check if the address is a user
-        if (self.users[_userAddress].isRegistered) {
-            User memory user = self.users[_userAddress];
+        if (gs.users[_userAddress].isRegistered) {
+            GreenCycle.User memory user = gs.users[_userAddress];
             return (
                 "User",
                 user.id,
@@ -109,11 +88,9 @@ library UserLib {
         }
 
         // Check if the address is a recycler
-        if (self.recyclerAction.recyclers[_userAddress].isRegistered) {
-            RecyclerLib.Recycler memory recycler = self
-                .recyclerAction
-                .recyclers[_userAddress];
-            Coordinates memory coord = self.recyclerAction.recyclerCordinates[
+        if (gs.recyclers[_userAddress].isRegistered) {
+            GreenCycle.Recycler memory recycler = gs.recyclers[_userAddress];
+            GreenCycle.Coordinates memory coord = gs.recyclerCordinates[
                 _userAddress
             ];
             return (
@@ -127,10 +104,8 @@ library UserLib {
             );
         }
 
-        if (self.collectorAction.collectors[_userAddress].id != 0) {
-            CollectorLib.Collector storage collect = self
-                .collectorAction
-                .collectors[_userAddress];
+        if (gs.collectors[_userAddress].id != 0) {
+            GreenCycle.Collector storage collect = gs.collectors[_userAddress];
             return (
                 "collector",
                 collect.id,

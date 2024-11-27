@@ -3,24 +3,43 @@ pragma solidity ^0.8.24;
 
 import {waste} from "./libraries/Wastelibrary.sol";
 import {IEscrow} from "./interfaces/IEscrow.sol";
+import "./libraries/GreenCycle.sol";
 import "./libraries/UserLib.sol";
 import "./libraries/RecyclerLib.sol";
 import "./libraries/CollectorLib.sol";
 import "./libraries/RequestLib.sol";
 
 contract WasteManagement {
-    using UserLib for UserLib.UserStorage;
-    using RecyclerLib for RecyclerLib.RecyclerStorage;
-    using CollectorLib for CollectorLib.CollectorStorage;
-    using RequestLib for RequestLib.RequestStorage;
-
-    UserLib.UserStorage userAction;
-    RecyclerLib.RecyclerStorage recyclerAction;
-    CollectorLib.CollectorStorage collectorAction;
-    RequestLib.RequestStorage requestAction;
-
     IEscrow public escrowContract; // Address of the Escrow contract
     address owner;
+
+    event UserCreated(address indexed userAddress, bool isRegistered);
+    event LocationSet(address _user, int32 _latitude, int32 _longitude);
+    event OfferCreated(
+        address indexed recycler,
+        string _wasteType,
+        uint256 _pricePerKg,
+        uint256 _miniQuantity
+    );
+
+    event collectorCreated(
+        uint256 indexed collectorId,
+        address indexed _collectorAddress,
+        string _name,
+        string _contact
+    );
+
+    event RequestCreated(
+        uint256 requestID,
+        address userAddress,
+        uint256 offerId,
+        uint256 weight,
+        uint256 priceAgreed
+    );
+
+    event RequestConfirmed(uint256 requestID, address collectorAddress);
+    event RequestCancelled(uint _requestId);
+    event RequestAccepted(uint256 requestID, address collectorAddress);
 
     constructor(address _escrowContract) {
         escrowContract = IEscrow(_escrowContract);
@@ -38,7 +57,8 @@ contract WasteManagement {
      * @dev callable internally by functions when uploading/creating waste pickup requests
      */
     function _createUser(address _user) internal {
-        userAction.createUser(_user);
+        UserLib.createUser(_user);
+        emit UserCreated(_user, true);
     }
 
     /**
@@ -53,21 +73,24 @@ contract WasteManagement {
         int32 _latitude,
         int32 _longitude
     ) internal {
-        userAction.setUserLocation(_user, _latitude, _longitude);
+        UserLib.setUserLocation(_user, _latitude, _longitude);
+        emit LocationSet(_user, _latitude, _longitude);
     }
 
     function getUser(
         address _userAddress
-    ) external view returns (UserLib.User memory) {
-        return userAction.getUser(_userAddress);
+    ) external view returns (GreenCycle.User memory) {
+        return UserLib.getUser(_userAddress);
     }
 
     /*******************************RECYCLERS*********************************************/
 
     function recyclerOffers(
         address _addr
-    ) external view returns (RecyclerLib.Offer[] memory) {
-        return recyclerAction.recyclerOffers[_addr];
+    ) external view returns (GreenCycle.Offer[] memory) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        return gs.recyclerOffers[_addr];
     }
 
     function createRecycler(
@@ -77,32 +100,29 @@ contract WasteManagement {
         int32 lon
     ) external returns (uint256, address, string memory, bool) {
         return
-            recyclerAction.createRecycler(
-                _recyclerAddress,
-                _location,
-                lat,
-                lon
-            );
+            RecyclerLib.createRecycler(_recyclerAddress, _location, lat, lon);
     }
 
     function recyclers(
         address _address
-    ) external view returns (RecyclerLib.Recycler memory) {
-        return recyclerAction.recyclers[_address];
+    ) external view returns (GreenCycle.Recycler memory) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        return gs.recyclers[_address];
     }
 
     function getRecyclerById(
         uint256 id
-    ) external view returns (RecyclerLib.Recycler memory) {
-        return recyclerAction.getRecyclerById(id);
+    ) external view returns (GreenCycle.Recycler memory) {
+        return RecyclerLib.getRecyclerById(id);
     }
 
     function seeAllRecyclers()
         external
         view
-        returns (RecyclerLib.Recycler[] memory)
+        returns (GreenCycle.Recycler[] memory)
     {
-        return recyclerAction.seeAllRecyclers();
+        return RecyclerLib.seeAllRecyclers();
     }
 
     function createOffer(
@@ -110,20 +130,21 @@ contract WasteManagement {
         uint256 _pricePerKg,
         uint256 _miniQuantity
     ) external {
-        recyclerAction.createOffer(_wasteType, _pricePerKg, _miniQuantity);
+        RecyclerLib.createOffer(_wasteType, _pricePerKg, _miniQuantity);
+        emit OfferCreated(msg.sender, _wasteType, _pricePerKg, _miniQuantity);
     }
 
     function getRecyclerOffers(
         uint256 _id //Company Id
-    ) external view returns (RecyclerLib.Offer[] memory) {
-        return recyclerAction.getRecyclerOffers(_id);
+    ) external view returns (GreenCycle.Offer[] memory) {
+        return RecyclerLib.getRecyclerOffers(_id);
     }
 
     function viewOffer(
         address _recyclerAddress,
         uint256 _offerId
-    ) external view returns (RecyclerLib.Offer memory) {
-        return recyclerAction.viewOffer(_recyclerAddress, _offerId);
+    ) external view returns (GreenCycle.Offer memory) {
+        return RecyclerLib.viewOffer(_recyclerAddress, _offerId);
     }
 
     function updateOffer(
@@ -132,9 +153,9 @@ contract WasteManagement {
         address _recyclerAddress,
         uint256 _pricePerKg,
         uint256 _minQuantity
-    ) external returns (RecyclerLib.Offer memory) {
+    ) external returns (GreenCycle.Offer memory) {
         return
-            recyclerAction.updateOffer(
+            RecyclerLib.updateOffer(
                 _offerId,
                 _name,
                 _recyclerAddress,
@@ -149,21 +170,25 @@ contract WasteManagement {
         string memory _contact
     ) external {
         //should be set by recyclers/
-        return
-            collectorAction.createCollector(_collectorAddress, _name, _contact);
+        uint256 _id = CollectorLib.createCollector(
+            _collectorAddress,
+            _name,
+            _contact
+        );
+        emit collectorCreated(_id, _collectorAddress, _name, _contact);
     }
 
     function getCollector(
         address _address
-    ) external view returns (CollectorLib.Collector memory) {
-        return collectorAction.getCollector(_address);
+    ) external view returns (GreenCycle.Collector memory) {
+        return CollectorLib.getCollector(_address);
     }
 
     // New function to get all collectors for a specific recycler
     function getRecyclerCollectors(
         address _recyclerAddress
-    ) external view returns (CollectorLib.Collector[] memory) {
-        return collectorAction.getRecyclerCollectors(_recyclerAddress);
+    ) external view returns (GreenCycle.Collector[] memory) {
+        return CollectorLib.getRecyclerCollectors(_recyclerAddress);
     }
 
     /********************REQUESTS*********************/
@@ -173,11 +198,11 @@ contract WasteManagement {
         uint256 _recyclerId,
         uint8 _offerId,
         uint32 _weight,
-        uint32 _price,
+        uint256 _price,
         int32 _latitude,
         int32 _longitude
     ) external {
-        requestAction.makeRequest(
+        RequestLib.makeRequest(
             _recyclerId,
             _offerId,
             _weight,
@@ -185,26 +210,36 @@ contract WasteManagement {
             _latitude,
             _longitude
         );
+
+        emit RequestCreated(_recyclerId, msg.sender, _offerId, _weight, _price);
     }
 
     function getRecyclerRequests(
         uint256 _recyclerId
-    ) external view returns (RequestLib.WasteCollectionRequest[] memory) {
-        return requestAction.getRecyclerRequests(_recyclerId);
+    ) external view returns (GreenCycle.WasteCollectionRequest[] memory) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        return gs.recyclerRequests[_recyclerId];
     }
 
     function getAllUserRequest()
         external
         view
-        returns (RequestLib.WasteCollectionRequest[] memory)
+        returns (GreenCycle.WasteCollectionRequest[] memory)
     {
-        return requestAction.getAllUserRequest();
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        return gs.allUserRequest[msg.sender];
     }
 
     function showRequest(
         uint256 _requestID
-    ) external view returns (RequestLib.WasteCollectionRequest memory) {
-        return requestAction.showRequest(_requestID);
+    ) external view returns (GreenCycle.WasteCollectionRequest memory) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        if (gs.userWasteRequests[_requestID].id == 0)
+            revert waste.REQUESTNOTFOUND();
+        return gs.userWasteRequests[_requestID];
     }
 
     function acceptRequest(
@@ -212,12 +247,14 @@ contract WasteManagement {
         address _collectorAddress
     ) external payable {
         //should be called by the recycler
-        requestAction.acceptRequest(
+        RequestLib.acceptRequest(
             _requestID,
             _collectorAddress,
             msg.value,
             escrowContract
         );
+        // Emit an event to indicate request acceptance
+        emit RequestAccepted(_requestID, _collectorAddress);
     }
 
     function getAllCollectorRequests()
@@ -225,20 +262,22 @@ contract WasteManagement {
         view
         returns (uint256[] memory)
     {
-        return requestAction.getAllCollectorRequests();
+        return RequestLib.getAllCollectorRequests();
     }
 
     // should be called by the collector
     function confirmRequest(uint256 _requestID) external payable {
-        requestAction.confirmRequest(_requestID, escrowContract);
+        RequestLib.confirmRequest(_requestID, escrowContract);
+        emit RequestConfirmed(_requestID, msg.sender);
     }
 
     function userCancelRequest(uint256 _requestID) external {
-        requestAction.userCancelRequest(_requestID);
+        RequestLib.userCancelRequest(_requestID);
     }
 
     function cancelRequestAndRefund(uint256 _requestID) external {
-        requestAction.cancelRequestAndRefund(_requestID, escrowContract);
+        RequestLib.cancelRequestAndRefund(_requestID, escrowContract);
+        emit RequestCancelled(_requestID);
     }
 
     function getUserRole(
@@ -256,7 +295,15 @@ contract WasteManagement {
             bool isRegistered
         )
     {
-        return userAction.getUserRole(_userAddress);
+        return UserLib.getUserRole(_userAddress);
+    }
+
+    function getAllUserRequests(
+        address _addr
+    ) external view returns (GreenCycle.WasteCollectionRequest[] memory) {
+        GreenCycle.GreenCycleStorage storage gs = GreenCycle
+            .greenCycleStorage();
+        return gs.allUserRequest[_addr];
     }
 
     event FundsWithdrawn(address indexed owner, uint256 amount);

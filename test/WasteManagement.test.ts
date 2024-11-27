@@ -121,6 +121,12 @@ describe("WasteManagement Contract", function () {
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
 
+      const tx = await wasteManagement.connect(recycler).getRecyclerOffers(1);
+      console.log(tx)
+
+      const tx2 = await wasteManagement.connect(recycler).viewOffer(recycler.getAddress(), 0);
+      console.log(tx2)
+
       await wasteManagement
         .connect(recycler)
         .updateOffer(0, "Updated Plastic", recycler.address, 15, 3);
@@ -138,13 +144,11 @@ describe("WasteManagement Contract", function () {
       const { wasteManagement, user1, recycler } = await loadFixture(deployFixture);
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
-      // const tx = await wasteManagement.seeAllRecyclers();
-      // console.log(tx);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
-      await wasteManagement.connect(user1).makeRequest(1, 1, 10, 100, 6, 5);
+      await wasteManagement.connect(user1).makeRequest(1, 0, 10, 100, 6, 5);
 
       const userRequest = await wasteManagement.connect(user1).getAllUserRequest();
-      console.log("All User Requests:", userRequest);
+      // console.log("All User Requests:", userRequest);
       const request = await wasteManagement.showRequest(1);
       expect(request.userAddress).to.equal(user1.address);
       expect(request.recyclerAddress).to.equal(recycler.address);
@@ -161,26 +165,27 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.connect(recycler).acceptRequest(1, collector.address, {value: ethers.parseEther("1")});
       const request = await wasteManagement.showRequest(1);
-
+      console.log(request.status);
+      expect(request.status).to.be.equal(1);
       expect(request.isAccepted).to.be.true;
       expect(request.assignedCollector).to.equal(collector.address);
     });
 
     it("Should revert if a user tries to make a request with insufficient weight", async function () {
-      const { wasteManagement, user1, recycler } = await loadFixture(deployFixture);
+      const { wasteManagement, user1, recycler, wasteErr } = await loadFixture(deployFixture);
 
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
       await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
       
       await expect(
           wasteManagement.connect(user1).makeRequest(1, 0, 3, ethers.parseEther("1"), 6, 5)
-      ).to.be.revertedWithCustomError(wasteManagement, "LOWER_THAN_MINQUANTITY");
+      ).to.be.revertedWithCustomError(wasteErr, "LOWER_THAN_MINQUANTITY");
   });
 
 
 
     it("Should revert if recycler deposit amount less than valuedAt by user", async function () {
-      const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+      const { wasteManagement, user1, recycler, collector, wasteErr } = await loadFixture(deployFixture);
   
       // Register recycler and create an offer
       await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
@@ -201,7 +206,7 @@ describe("WasteManagement Contract", function () {
           wasteManagement.connect(recycler).acceptRequest(1, collector.address, {
               value: ethers.parseEther("0.5"), // Less than 1 Ether
           })
-      ).to.be.revertedWithCustomError(wasteManagement, "AMOUNT_LESS_THAN_AMOUNT_VALUED");
+      ).to.be.revertedWithCustomError(wasteErr, "AMOUNT_LESS_THAN_AMOUNT_VALUED");
   });
 
 
@@ -215,7 +220,7 @@ describe("WasteManagement Contract", function () {
 
       await wasteManagement.connect(collector).confirmRequest(1);
       const request = await wasteManagement.showRequest(1);
-
+      expect(request.status).to.be.equal(2)
       expect(request.isCompleted).to.be.true;
     });
 
@@ -231,8 +236,23 @@ describe("WasteManagement Contract", function () {
       expect(tx2.length).equal(2)
   });
 
+
+  it("Should get all user requests", async function () {
+    const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+
+    await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
+    await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
+    await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
+    await wasteManagement.connect(user1).makeRequest(1, 0, 10, ethers.parseEther("1"), 6, 5);      
+    const tx2 = await wasteManagement.getAllUserRequests(user1);
+    // console.log(tx2);
+    
+  
+    expect(tx2.length).equal(2)
+});
+
     it("Should revert if a non-assigned collector tries to confirm the request", async function () {
-      const { wasteManagement, user1, recycler, collector, otherCollector } = await loadFixture(
+      const { wasteManagement, user1, recycler, collector, otherCollector, wasteErr } = await loadFixture(
           deployFixture
       );
 
@@ -247,7 +267,7 @@ describe("WasteManagement Contract", function () {
       });
 
       await expect(wasteManagement.connect(otherCollector).confirmRequest(1)).to.be.revertedWithCustomError(
-          wasteManagement,
+          wasteErr,
           "NOT_ASSIGNED"
       );
   });
@@ -268,7 +288,7 @@ describe("WasteManagement Contract", function () {
 });
 
 it("Should revert if a user tries to cancel an accepted request", async function () {
-    const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+    const { wasteManagement, user1, recycler, collector, wasteErr } = await loadFixture(deployFixture);
 
     await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
@@ -281,13 +301,13 @@ it("Should revert if a user tries to cancel an accepted request", async function
     });
 
     await expect(wasteManagement.connect(user1).userCancelRequest(1)).to.be.revertedWithCustomError(
-        wasteManagement,
+      wasteErr,
         "ALREADY_ACCEPTED"
     );
 });
 
 it("Should revert if a user tries to cancel a completed request", async function () {
-    const { wasteManagement, user1, recycler, collector } = await loadFixture(deployFixture);
+    const { wasteManagement, user1, recycler, collector, wasteErr } = await loadFixture(deployFixture);
 
     await wasteManagement.createRecycler(recycler.address, "City A", 123, 456);
     await wasteManagement.connect(recycler).createOffer("Plastic", 10, 5);
@@ -302,7 +322,7 @@ it("Should revert if a user tries to cancel a completed request", async function
     await wasteManagement.connect(collector).confirmRequest(1);
 
     await expect(wasteManagement.connect(user1).userCancelRequest(1)).to.be.revertedWithCustomError(
-        wasteManagement,
+        wasteErr,
         "ALREADY_COMPLETED"
     );
 });
